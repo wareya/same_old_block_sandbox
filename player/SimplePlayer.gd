@@ -38,6 +38,10 @@ func handle_accel(delta):
         var wish_dir_length = wish_dir.length()
         var actual_accel = (accel if is_on_floor() else accel_air) * actual_maxspeed * wish_dir_length
         
+        if Input.is_action_pressed("sprint"):
+            actual_maxspeed *= 2.0
+            actual_accel *= 2.0
+        
         var floor_velocity = Vector3(velocity.x, 0, velocity.z)
         var speed_in_wish_dir = floor_velocity.dot(wish_dir.normalized())
         var speed = floor_velocity.length()

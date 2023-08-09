@@ -37,13 +37,14 @@ func _ready() -> void:
     mesh_instance_child.visible = false
     
     var mat = StandardMaterial3D.new()
-    mat.albedo_color = Color(0.5, 0.5, 0.5, 2.0)
+    #mat.albedo_color = Color(0.5, 0.5, 0.5, 2.0)
+    mat.albedo_color = Color(0.0, 0.0, 0.0, 0.5)
     mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
     mesh_instance_child.material_override = mat
 
-@onready var world : Node = get_tree().get_first_node_in_group("World")
+@onready var world : World = get_tree().get_first_node_in_group("World")
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta : float) -> void:

@@ -1,16 +1,20 @@
-[gd_scene load_steps=16 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=15 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Texture2D" uid="uid://cx5ok6poub5d5" path="res://art/pixelsky.png" id="1_ooh8t"]
 [ext_resource type="Script" path="res://player/SimplePlayer.gd" id="1_xe5oo"]
-[ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="4_e0i4c"]
 [ext_resource type="Script" path="res://player/PlayerInteract.gd" id="4_nniih"]
 [ext_resource type="Script" path="res://BuildBlocker.gd" id="4_qrw40"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
 noise_type = 0
-domain_warp_type = 2
+fractal_ping_pong_strength = 0.75
+cellular_distance_function = 3
+cellular_jitter = 1.13
+domain_warp_frequency = 0.01
 domain_warp_fractal_octaves = 2
+domain_warp_fractal_lacunarity = 4.0
+metadata/_preview_in_3d_space_ = true
 
 [sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_3b00g"]
 panorama = ExtResource("1_ooh8t")
@@ -80,7 +84,8 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_3qx6c")
 
-[node name="Player" type="CharacterBody3D" parent="."]
+[node name="Player" type="CharacterBody3D" parent="." groups=["Player"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 32, 0)
 collision_layer = 2
 script = ExtResource("1_xe5oo")
 step_height = 0.6
@@ -119,6 +124,8 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="Sprite2D" type="Sprite2D" parent="Player/Control"]
 texture_filter = 1
@@ -130,10 +137,6 @@ texture_filter = 1
 material = SubResource("ShaderMaterial_1dhme")
 rotation = 1.57079
 texture = SubResource("GradientTexture2D_afcar")
-
-[node name="CSGBox3D" type="CSGBox3D" parent="."]
-transform = Transform3D(1.0671, -0.611739, -1.57704, 0.198962, 1.89708, -0.601254, 1.67979, 0.163914, 1.07305, 0, -0.0826576, -3.99185)
-material = ExtResource("4_e0i4c")
 
 [node name="FPS" type="Label" parent="."]
 offset_right = 40.0
