@@ -330,9 +330,6 @@ func remesh():
     print((Time.get_ticks_usec() - start)/1000.0, "msec to build buffers")
     print("----")
     
-    if verts.size() == 0:
-        return
-    
     start = Time.get_ticks_usec()
     var arrays = []
     arrays.resize(Mesh.ARRAY_MAX)
@@ -347,6 +344,8 @@ func remesh():
         remesh_output = [arrays]
         remesh_output_mutex.unlock()
     else:
+        if arrays.size() == 0:
+            remesh_output = [null, null]
         # right way, can't do it ATM because multithreaded renderer crashes a lot (godot 4.1.0)
         # (we need the multithreaded renderer so that making a mesh from this thread isn't UB)
         var new_mesh_child = ArrayMesh.new()
@@ -454,6 +453,8 @@ var _script : String = get_script().source_code
 var dirty : bool = false
 var alive = false
 func _process(_delta: float) -> void:
+    return
+    
     if !alive:
         return
     # hot reloading watchdog
@@ -486,19 +487,23 @@ func _process(_delta: float) -> void:
     if remesh_output != []:
         print("got remesh")
         var mesh_collision
-        if true:
+        if remesh_output.size() == 1:
             # wrong way, but have to do it this way
-            var arrays = remesh_output[0]
+            var arrays : Array = remesh_output[0]
             remesh_output = []
             mesh_child = ArrayMesh.new()
-            mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-            mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
-            mesh_collision = mesh_child.create_trimesh_shape()
+            if arrays[0].size() == 0:
+                mesh_collision = null
+            else:
+                mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+                mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
+                mesh_collision = mesh_child.create_trimesh_shape()
             remesh_output_mutex.unlock()
         else:
             # right way, can't do it ATM because multithreaded renderer crashes a lot (godot 4.1.0)
             mesh_child = remesh_output[0]
-            mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
+            if mesh_child != null:
+                mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
             mesh_collision = remesh_output[1]
             remesh_output = []
         
@@ -508,7 +513,8 @@ func _process(_delta: float) -> void:
             body_child.create_shape_owner(body_child)
         while body_child.shape_owner_get_shape_count(0) > 0:
             body_child.shape_owner_remove_shape(0, 0)
-        body_child.shape_owner_add_shape(0, mesh_collision)
+        if mesh_collision != null:
+            body_child.shape_owner_add_shape(0, mesh_collision)
     else:
         remesh_output_mutex.unlock()
     

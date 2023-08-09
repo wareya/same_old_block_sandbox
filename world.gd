@@ -14,20 +14,19 @@ func load_chunk(coord = Vector3()):
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-    var range = 0
+    var range = 1
     for y in range(-1, 2):
         for z in range(-range, range+1):
             for x in range(-range, range+1):
                 var c = Vector3(x, y, z)*Voxels.chunk_size
                 
                 var vox = load_chunk(c)
-                
-                chunk_table_mutex.lock()
                 all_chunks[c] = vox
-                chunk_table_mutex.unlock()
-                
-                vox.initial_remesh(c == Vector3())
-                chunks_loaded[c] = vox
+    
+    var c = Vector3()
+    var vox = all_chunks[c]
+    vox.initial_remesh(true)
+    chunks_loaded[c] = vox
                 
 
 static func get_chunk_coord(coord):
