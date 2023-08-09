@@ -1,0 +1,140 @@
+[gd_scene load_steps=16 format=3 uid="uid://cfo3tvk8wo233"]
+
+[ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
+[ext_resource type="Texture2D" uid="uid://cx5ok6poub5d5" path="res://art/pixelsky.png" id="1_ooh8t"]
+[ext_resource type="Script" path="res://player/SimplePlayer.gd" id="1_xe5oo"]
+[ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="4_e0i4c"]
+[ext_resource type="Script" path="res://player/PlayerInteract.gd" id="4_nniih"]
+[ext_resource type="Script" path="res://BuildBlocker.gd" id="4_qrw40"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
+noise_type = 0
+domain_warp_type = 2
+domain_warp_fractal_octaves = 2
+
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_3b00g"]
+panorama = ExtResource("1_ooh8t")
+filter = false
+
+[sub_resource type="Sky" id="Sky_ychdd"]
+sky_material = SubResource("PanoramaSkyMaterial_3b00g")
+
+[sub_resource type="Environment" id="Environment_3qx6c"]
+background_mode = 2
+sky = SubResource("Sky_ychdd")
+ambient_light_source = 2
+ambient_light_color = Color(0.392157, 0.392157, 0.392157, 1)
+tonemap_mode = 2
+sdfgi_use_occlusion = true
+sdfgi_min_cell_size = 0.1
+sdfgi_cascade0_distance = 6.4
+sdfgi_max_distance = 102.4
+sdfgi_y_scale = 2
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
+size = Vector3(0.6, 1.8, 0.6)
+
+[sub_resource type="Shader" id="Shader_0gwjq"]
+code = "// NOTE: Shader automatically converted from Godot Engine 4.1.stable's CanvasItemMaterial.
+
+shader_type canvas_item;
+render_mode blend_mix;
+
+uniform sampler2D screen_texture : hint_screen_texture;
+
+vec4 blendOver(vec4 a, vec4 b)
+{
+    float newAlpha = mix(b.a, 1.0, a.a);
+    vec3 newColor = mix(b.a * b.rgb, a.rgb, a.a);
+    float divideFactor = (newAlpha > 0.001 ? (1.0 / newAlpha) : 1.0);
+    return vec4(divideFactor * newColor, newAlpha);
+}
+
+void fragment()
+{
+    vec4 tex = texture(TEXTURE, UV);
+    tex.a = 2.0-abs(tex.r-0.5)*2.0;
+    vec4 screen = texture(screen_texture, SCREEN_UV);
+    COLOR = blendOver(tex, screen);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1dhme"]
+shader = SubResource("Shader_0gwjq")
+
+[sub_resource type="Gradient" id="Gradient_lacwj"]
+colors = PackedColorArray(0.501961, 0.501961, 0.501961, 1, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_afcar"]
+gradient = SubResource("Gradient_lacwj")
+width = 2
+height = 16
+
+[node name="World" type="Node3D" groups=["World"]]
+script = ExtResource("1_m7hry")
+base_noise = SubResource("FastNoiseLite_5sm6h")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 2.36717, -1.64375)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_3qx6c")
+
+[node name="Player" type="CharacterBody3D" parent="."]
+collision_layer = 2
+script = ExtResource("1_xe5oo")
+step_height = 0.6
+
+[node name="BuildBlocker" type="Area3D" parent="Player"]
+visible = false
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("4_qrw40")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player/BuildBlocker"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("BoxShape3D_1dqmv")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("BoxShape3D_1dqmv")
+
+[node name="CameraHolder" type="Node3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Player/CameraHolder"]
+current = true
+fov = 90.0
+
+[node name="PlayerInteract" type="RayCast3D" parent="Player/CameraHolder"]
+target_position = Vector3(0, 0, -5)
+script = ExtResource("4_nniih")
+
+[node name="Control" type="Control" parent="Player"]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+
+[node name="Sprite2D" type="Sprite2D" parent="Player/Control"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_1dhme")
+texture = SubResource("GradientTexture2D_afcar")
+
+[node name="Sprite2D2" type="Sprite2D" parent="Player/Control"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_1dhme")
+rotation = 1.57079
+texture = SubResource("GradientTexture2D_afcar")
+
+[node name="CSGBox3D" type="CSGBox3D" parent="."]
+transform = Transform3D(1.0671, -0.611739, -1.57704, 0.198962, 1.89708, -0.601254, 1.67979, 0.163914, 1.07305, 0, -0.0826576, -3.99185)
+material = ExtResource("4_e0i4c")
+
+[node name="FPS" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0

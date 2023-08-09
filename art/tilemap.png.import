@@ -1,0 +1,26 @@
+[remap]
+
+importer="2d_array_texture"
+type="CompressedTexture2DArray"
+uid="uid://cj8k35d124enw"
+path="res://.godot/imported/tilemap.png-2707c64c4630683b09ab99fc72bf5d50.ctexarray"
+metadata={
+"vram_texture": false
+}
+
+[deps]
+
+source_file="res://art/tilemap.png"
+dest_files=["res://.godot/imported/tilemap.png-2707c64c4630683b09ab99fc72bf5d50.ctexarray"]
+
+[params]
+
+compress/mode=3
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+slices/horizontal=10
+slices/vertical=16

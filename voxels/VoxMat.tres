@@ -1,0 +1,108 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://cf8645je7btd2"]
+
+[ext_resource type="CompressedTexture2DArray" uid="uid://cj8k35d124enw" path="res://art/tilemap.png" id="1_tv5x2"]
+
+[sub_resource type="Shader" id="Shader_qe5d5"]
+code = "// NOTE: Shader automatically converted from Godot Engine 4.1.stable's StandardMaterial3D.
+
+shader_type spatial;
+render_mode blend_mix,depth_draw_opaque,cull_back,diffuse_lambert,specular_schlick_ggx;
+uniform sampler2DArray texture_albedo : source_color,filter_nearest_mipmap_anisotropic,repeat_enable;
+
+void vertex()
+{
+    vec3 pos = VERTEX.xyz;
+    if (NORMAL.x > 0.7)
+        UV = vec2(-pos.z, -pos.y) + vec2(0.5);
+    else if (NORMAL.z > 0.7)
+        UV = vec2(pos.x, -pos.y) + vec2(0.5);
+    else if (NORMAL.y > 0.7)
+        UV = vec2(pos.x, pos.z) + vec2(0.5);
+    else if (NORMAL.x < -0.7)
+        UV = vec2(pos.z, -pos.y) + vec2(0.5);
+    else if (NORMAL.z < -0.7)
+        UV = vec2(-pos.x, -pos.y) + vec2(0.5);
+    else
+        UV = vec2(-pos.x, pos.z) + vec2(0.5);
+}
+
+#define BIT_00 1
+#define BIT_10 2
+#define BIT_20 4
+#define BIT_01 8
+#define BIT_21 16
+#define BIT_02 32
+#define BIT_12 64
+#define BIT_22 128
+
+void fragment()
+{
+    vec2 quadrant = round(fract(UV));
+    int bitmask = int(UV2.y);
+    float offset = 0.0;
+    
+    bool ud_offset = false;
+    bool lr_offset = false;
+    bool di_offset = false;
+    int ud_test = 0;
+    int lr_test = 0;
+    int di_test = 0;
+    if (quadrant.x < 0.5 && quadrant.y >= 0.5)
+    {
+        ud_test = BIT_10;
+        lr_test = BIT_01;
+        di_test = BIT_00;
+    }
+    else if (quadrant.x >= 0.5 && quadrant.y >= 0.5)
+    {
+        ud_test = BIT_10;
+        lr_test = BIT_21;
+        di_test = BIT_20;
+    }
+    else if (quadrant.x < 0.5 && quadrant.y <0.5)
+    {
+        ud_test = BIT_12;
+        lr_test = BIT_01;
+        di_test = BIT_02;
+    }
+    else if (quadrant.x >= 0.5 && quadrant.y < 0.5)
+    {
+        ud_test = BIT_12;
+        lr_test = BIT_21;
+        di_test = BIT_22;
+    }
+    if ((bitmask & ud_test) == 0)
+        ud_offset = true;
+    if ((bitmask & lr_test) == 0)
+        lr_offset = true;
+    if (ud_offset || lr_offset || (bitmask & di_test) == 0)
+        di_offset = true;
+    
+    if (ud_offset && lr_offset)
+        offset = 1.0;
+    else if (lr_offset)
+        offset = 2.0;
+    else if (ud_offset)
+        offset = 3.0;
+    else if (di_offset)
+        offset = 4.0;
+    
+    vec3 color = texture(texture_albedo, vec3(UV.x, UV.y, UV2.x + offset)).rgb;
+    
+    //color.r = UV2.y/255.0;
+    
+    float brightness = dot(color, vec3(1.0/3.0));
+    float color_v = max(0.0, brightness-0.4)*5.0 + 0.5;
+    float color_part = color.b*4.0 + color.g*0.5 - color.r*0.5 + 0.5;
+    float f = clamp(color_part - color_v, 0.0, 1.0);
+    float roughness = mix(0.5, 1.0, f);
+    
+    ALBEDO = color;
+    ROUGHNESS = roughness;
+}
+"
+
+[resource]
+render_priority = 0
+shader = SubResource("Shader_qe5d5")
+shader_parameter/texture_albedo = ExtResource("1_tv5x2")
