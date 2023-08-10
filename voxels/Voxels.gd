@@ -6,12 +6,33 @@ static var bounds : AABB = AABB(Vector3(), Vector3.ONE*(chunk_size-1))
 
 const threaded_remesh = true
 
+# top, bottom, side
 static var voxel_info = [
-    [0, 0, 0],
-    [0, 10, 20],
-    [10, 10, 10],
-    [30, 30, 30],
+    # 0
+    [0, 0, 0], # air
+    [0, 10, 20], # grass
+    [10, 10, 10], # dirt
+    [30, 30, 30], # rock
+    [50, 50, 40], # log
+    # 5
+    [60, 60, 60], # leaf
+    [70, 70, 70], # water
 ]
+
+static var vox_alphatest = {
+    5 : null, # leaf
+}
+static var vox_transparent = {
+    6 : null, # water
+}
+
+static func vox_get_type(vox : int):
+    if vox in vox_alphatest:
+        return 1
+    elif vox in vox_transparent:
+        return 2
+    return 0
+    
 
 # 0xFF - not cached. other: cached, "on" bits are drawn sides.
 var side_cache = PackedByteArray()
@@ -72,6 +93,9 @@ func generate():
         if vox != 0 and rock_noise > 1.0:
             vox = 3
         
+        if vox == 0 and c.y < 0:
+            vox = 6
+        
         voxels[i] = vox
         side_cache[i] = 0xFF
         for j in 6:
@@ -80,7 +104,6 @@ func generate():
 
 
 var meshinst_child = MeshInstance3D.new()
-var mesh_child = ArrayMesh.new()
 var body_child = StaticBody3D.new()
 func _ready() -> void:
     print("voxels ready!")
@@ -127,19 +150,13 @@ var remesh_output = []
 
 var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
-var neighbor_chunks = {}
-var remeshed = false
-func remesh():
-    print("in remesh()")
-    neighbor_chunks = {}
-    world.chunk_table_mutex.lock()
-    for y in range(-1, 2):
-        for z in range(-1, 2):
-            for x in range(-1, 2):
-                var c = Vector3(x, y, z)*chunk_size + chunk_position
-                if c in world.all_chunks:
-                    neighbor_chunks[c] = world.all_chunks[c]
-    world.chunk_table_mutex.unlock()
+func remesh_get_arrays(target_type : int):
+    print("target type: ", target_type)
+    var voxel_is_target = func(vox : int, target_type : int) -> bool:
+        if vox == 0:
+            return false
+        var type = Voxels.vox_get_type(vox)
+        return type == target_type
     
     var get_voxel = func(global_coord : Vector3):
         var chunk_coord = World.get_chunk_coord(global_coord - Vector3.ONE*chunk_size/2)
@@ -163,16 +180,6 @@ func remesh():
     
     var offs = Vector3.ONE*chunk_size/2.0
     
-    dirty_command_mutex.lock()
-    for cmd in dirty_commands:
-        print("dirty command...", cmd)
-        if cmd == null:
-            _dirty_sides()
-        else:
-            _dirty_block(cmd)
-    dirty_commands = []
-    dirty_command_mutex.unlock()
-    
     print("starting loop in remesh()")
     for y in chunk_size:
         var prev_x = []
@@ -194,10 +201,14 @@ func remesh():
                 var vox_index = y*chunk_size*chunk_size + z*chunk_size + x
                 var cached = side_cache[vox_index]
                 
+                var vox = voxels[vox_index]
+                var vox_type = Voxels.vox_get_type(vox)
+                var vox_xparent = vox_type != 0
+                
                 if cached == 0xFF:
-                    var vox = voxels[vox_index]
+                    
                     cached = 0x00
-                    if vox != 0:
+                    if voxel_is_target.call(vox, vox_type):
                         for d in 6:
                             var dir : Vector3 = dirs[d]
                             var neighbor_coord : Vector3 = Vector3(x, y, z) + dir
@@ -207,11 +218,11 @@ func remesh():
                                     neighbor_coord.z*chunk_size +
                                     neighbor_coord.x )
                                 var v = voxels[neighbor_index]
-                                if v != 0:
+                                if voxel_is_target.call(v, vox_type) or (vox_xparent and v != 0):
                                     continue
                             else:
                                 var neighbor = get_voxel.call(neighbor_coord + chunk_position)
-                                if neighbor != 0:
+                                if voxel_is_target.call(neighbor, vox_type) or (vox_xparent and neighbor != 0):
                                     continue
                             
                             var bitmask : int = 0
@@ -235,7 +246,7 @@ func remesh():
                                             bit_is_same = 1
                                     else:
                                         var next = get_voxel.call(next_coord + chunk_position)
-                                        if next  == vox:
+                                        if next == vox:
                                             bit_is_same = 1
                                     
                                     if bit_is_same == 1:
@@ -244,11 +255,11 @@ func remesh():
                                                 occlude_coord.y*chunk_size*chunk_size +
                                                 occlude_coord.z*chunk_size +
                                                 occlude_coord.x )
-                                            if voxels[occlude_index] != 0:
+                                            if voxel_is_target.call(voxels[occlude_index], vox_type):
                                                 bit_is_same = 0
                                         else:
                                             var occlude = get_voxel.call(occlude_coord + chunk_position)
-                                            if occlude != 0:
+                                            if voxel_is_target.call(occlude, vox_type):
                                                 bit_is_same = 0
                                     
                                     bitmask |= bit_is_same<<bit
@@ -258,14 +269,13 @@ func remesh():
                             cached |= 1<<d
                     side_cache[vox_index] = cached
                 
-                if cached == 0x00:
+                if cached == 0x00 or !voxel_is_target.call(vox, target_type):
                     prev_type = -1
                     prev_cached = cached
                     if prev_x_need_clear[x]:
                         prev_x[x][0] = -1
                         prev_x_need_clear[x] = false
                 else:
-                    var vox = voxels[vox_index]
                     var coord = Vector3(x, y, z) - offs
                     var prev_i_4 = prev_x[x][2]
                     var prev_i_5 = prev_x[x][3]
@@ -329,6 +339,7 @@ func remesh():
                     prev_x_need_clear[x] = true
     
     print((Time.get_ticks_usec() - start)/1000.0, "msec to build buffers")
+    print("verts size: ", verts.size())
     print("----")
     
     start = Time.get_ticks_usec()
@@ -338,33 +349,55 @@ func remesh():
     arrays[Mesh.ARRAY_NORMAL] = normals
     arrays[Mesh.ARRAY_TEX_UV2] = tex_indexes
     arrays[Mesh.ARRAY_INDEX] = indexes
+    return arrays
+
+var neighbor_chunks = {}
+var remeshed = false
+func remesh():
+    print("in remesh()")
+    neighbor_chunks = {}
+    world.chunk_table_mutex.lock()
+    for y in range(-1, 2):
+        for z in range(-1, 2):
+            for x in range(-1, 2):
+                var c = Vector3(x, y, z)*chunk_size + chunk_position
+                if c in world.all_chunks:
+                    neighbor_chunks[c] = world.all_chunks[c]
+    world.chunk_table_mutex.unlock()
     
-    if true:
-        # wrong way, have to do it to avoid crashes
-        remesh_output_mutex.lock()
-        remesh_output = [arrays]
-        remesh_output_mutex.unlock()
-    else:
-        if arrays.size() == 0:
-            remesh_output = [null, null]
-        # right way, can't do it ATM because multithreaded renderer crashes a lot (godot 4.1.0)
-        # (we need the multithreaded renderer so that making a mesh from this thread isn't UB)
-        var new_mesh_child = ArrayMesh.new()
-        new_mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-        print((Time.get_ticks_usec() - start)/1000.0, "msec to commit mesh")
-        
-        start = Time.get_ticks_usec()
-        var mesh_collision = new_mesh_child.create_trimesh_shape()
-        print((Time.get_ticks_usec() - start)/1000.0, "msec to rebuild collision (", verts.size(), " verts)")
-        
-        print("acquiring output lock")
-        remesh_output_mutex.lock()
-        print("acquired output lock")
-        remesh_output = [new_mesh_child, mesh_collision]
-        remesh_output_mutex.unlock()
+    dirty_command_mutex.lock()
+    for cmd in dirty_commands:
+        print("dirty command...", cmd)
+        if cmd == null:
+            _dirty_sides()
+        else:
+            _dirty_block(cmd)
+    dirty_commands = []
+    dirty_command_mutex.unlock()
+    
+    var solid_arrays = remesh_get_arrays(0)
+    var atest_arrays = remesh_get_arrays(1)
+    var trans_arrays = remesh_get_arrays(2)
+    
+    # wrong way, have to do it to avoid crashes
+    remesh_output_mutex.lock()
+    remesh_output = [solid_arrays, atest_arrays, trans_arrays]
+    print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
+    print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
+    remesh_output_mutex.unlock()
 
 var block_command_mutex = Mutex.new()
 var block_commands = []
+
+func get_block(coord : Vector3) -> int:
+    coord += Vector3.ONE*chunk_size/2
+    coord -= chunk_position
+    coord = coord.round()
+    if bounds.has_point(coord):
+        var index = Voxels.coord_to_index(coord)
+        return voxels[index]
+    
+    return 0
 
 func set_block(coord : Vector3, id : int):
     coord += Vector3.ONE*chunk_size/2
@@ -422,14 +455,16 @@ func _dirty_sides():
 
 var remesh_semaphore = Semaphore.new()
 var remesh_thread = Thread.new()
-
+var remesh_work_mutex = Mutex.new()
 func process_and_remesh():
+    remesh_work_mutex.lock()
     block_command_mutex.lock()
     for data in block_commands:
         dirty_block(data[0])
     block_commands = []
     block_command_mutex.unlock()
     remesh()
+    remesh_work_mutex.unlock()
 
 var force_wait : bool = false
 var _script : String = get_script().source_code
@@ -447,26 +482,30 @@ func _process(_delta: float) -> void:
     remesh_output_mutex.lock()
     if remesh_output != []:
         print("got remesh")
-        var mesh_collision
-        if remesh_output.size() == 1:
-            # wrong way, but have to do it this way
-            var arrays : Array = remesh_output[0]
-            remesh_output = []
-            mesh_child = ArrayMesh.new()
-            if arrays[0].size() == 0:
-                mesh_collision = null
-            else:
+        
+        var mesh_collision = []
+        
+        var mesh_child = ArrayMesh.new()
+        
+        var add_arrays = func(arrays, mat, solid):
+            if arrays[0].size() > 0:
                 mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-                mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
-                mesh_collision = mesh_child.create_trimesh_shape()
-            remesh_output_mutex.unlock()
-        else:
-            # right way, can't do it ATM because multithreaded renderer crashes a lot (godot 4.1.0)
-            mesh_child = remesh_output[0]
-            if mesh_child != null:
-                mesh_child.surface_set_material(0, preload("res://voxels/VoxMat.tres"))
-            mesh_collision = remesh_output[1]
-            remesh_output = []
+                var id = mesh_child.get_surface_count() - 1
+                mesh_child.surface_set_material(id, mat)
+                if solid:
+                    mesh_collision.push_back(mesh_child.create_trimesh_shape())
+            return mesh_child
+        
+        print("array sizes:")
+        for array in remesh_output:
+            print(array[0].size())
+        
+        add_arrays.call(remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
+        add_arrays.call(remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
+        add_arrays.call(remesh_output[2], preload("res://voxels/VoxMatTrans.tres"), false)
+        remesh_output = []
+        
+        remesh_output_mutex.unlock()
         
         meshinst_child.mesh = mesh_child
         
@@ -474,8 +513,9 @@ func _process(_delta: float) -> void:
             body_child.create_shape_owner(body_child)
         while body_child.shape_owner_get_shape_count(0) > 0:
             body_child.shape_owner_remove_shape(0, 0)
-        if mesh_collision != null:
-            body_child.shape_owner_add_shape(0, mesh_collision)
+        
+        for mesh in mesh_collision:
+            body_child.shape_owner_add_shape(0, mesh)
         
         remeshed = true
     else:

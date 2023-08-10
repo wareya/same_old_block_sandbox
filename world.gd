@@ -80,31 +80,54 @@ func set_block(coord : Vector3, id : int):
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta : float) -> void:
-    $FPS.text = str(Engine.get_frames_per_second())
+    $FPS.text = "FPS: %s\nchunks to load: %s" % [Engine.get_frames_per_second(), world_work_num_unloaded]
     
     if !world_work_thread.is_started():
         world_work_thread.start(dynamic_world_loop)
     
-    world_work_semaphore.post()
-    #find_chunk_load_queue(player_chunk)
-
-
-var world_work_thread = Thread.new()
-var world_work_semaphore = Semaphore.new()
-var world_work_mutex = Mutex.new()
-var world_work_queue = []
-func dynamic_world_loop():
-    while true:
-        world_work_semaphore.wait()
-        dynamically_load_world()
+    if !remesh_work_thread.is_started():
+        remesh_work_thread.start(remesh_work_loop)
     
-        print("checking chunks")
+    var did_lock = world_work_wait_signal.try_lock()
+    if did_lock:
+        world_work_wait_signal.unlock()
+    else:
+        world_work_semaphore.post()
+    
+    did_lock = remesh_work_wait_signal.try_lock()
+    if did_lock:
+        remesh_work_wait_signal.unlock()
+    else:
+        remesh_work_semaphore.post()
+    
+var remesh_work_thread = Thread.new()
+var remesh_work_semaphore = Semaphore.new()
+var remesh_work_wait_signal = Mutex.new()
+
+func remesh_work_loop():
+    while true:
+        remesh_work_wait_signal.lock()
+        remesh_work_semaphore.wait()
+        remesh_work_wait_signal.unlock()
+    
         dirty_chunk_mutex.lock()
         for chunk in dirty_chunks:
-            print("remeshing chunk...")
             chunk.process_and_remesh()
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
+
+var world_work_thread = Thread.new()
+var world_work_semaphore = Semaphore.new()
+var world_work_wait_signal = Mutex.new()
+var world_work_num_unloaded = 0
+
+func dynamic_world_loop():
+    while true:
+        world_work_wait_signal.lock()
+        world_work_semaphore.wait()
+        world_work_wait_signal.unlock()
+        
+        dynamically_load_world()
 
 func find_chunk_load_queue(player_chunk):
     var range_h = 128/Voxels.chunk_size/2
@@ -125,6 +148,7 @@ func find_chunk_load_queue(player_chunk):
                 
                 unloaded_coords.push_back(c)
     
+    world_work_num_unloaded = unloaded_coords.size()
     unloaded_coords.sort_custom(func (a, b): return a.length() < b.length())
     
     return unloaded_coords
