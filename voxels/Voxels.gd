@@ -453,8 +453,6 @@ var _script : String = get_script().source_code
 var dirty : bool = false
 var alive = false
 func _process(_delta: float) -> void:
-    return
-    
     if !alive:
         return
     # hot reloading watchdog
