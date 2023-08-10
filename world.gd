@@ -78,7 +78,8 @@ func set_block(coord : Vector3, id : int):
 
 @export var base_noise : Noise = null
 
-func _process(_delta : float) -> void:
+var time_alive = 0.0
+func _process(delta : float) -> void:
     $FPS.text = "FPS: %s\nchunks to load: %s" % [Engine.get_frames_per_second(), world_work_num_unloaded]
     
     if !world_work_thread.is_started():
@@ -86,6 +87,12 @@ func _process(_delta : float) -> void:
     
     if !remesh_work_thread.is_started():
         remesh_work_thread.start(remesh_work_loop)
+    
+    time_alive += delta
+    if world_work_num_unloaded == 0 and time_alive >= 0.0:
+        print("fully loaded!", time_alive)
+        time_alive = -100.0
+    
     
 var remesh_work_thread = Thread.new()
 var remesh_work_wait_signal = Mutex.new()
@@ -105,18 +112,19 @@ func remesh_work_loop():
 
 var world_work_thread = Thread.new()
 var world_work_wait_signal = Mutex.new()
-var world_work_num_unloaded = 0
+var world_work_num_unloaded = -1
 
 signal _trigger_world_work
 func dynamic_world_loop():
     var semaphore = Semaphore.new()
     while true:
         dynamically_load_world()
-        semaphore.post.call_deferred()
-        semaphore.wait()
+        if world_work_num_unloaded == 0:
+            semaphore.post.call_deferred()
+            semaphore.wait()
 
 func find_chunk_load_queue(player_chunk):
-    var range_h = 128/Voxels.chunk_size/2
+    var range_h = 256/Voxels.chunk_size/2
     var range_v = 64/Voxels.chunk_size/2
     
     var unloaded_coords = []
@@ -147,7 +155,7 @@ func get_player_chunk_coord(no_y : bool = false):
     return player_chunk
 
 func dynamically_load_world():
-    var player_chunk = get_player_chunk_coord(true)
+    var player_chunk = get_player_chunk_coord()
     var unloaded_coords = find_chunk_load_queue(player_chunk)
     
     if unloaded_coords.size() > 0:

@@ -324,8 +324,7 @@ func _process(delta: float) -> void:
     add_collision_debug_visualizer(delta)
     
     var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
-    var chunk_coord = world.get_player_chunk_coord()
-    chunk_coord.y = min(0, chunk_coord.y)
+    var chunk_coord = world.get_chunk_coord(global_position)
     var chunk = (world.chunks_loaded as Dictionary).get(chunk_coord)
     if not chunk or not chunk.remeshed:
         global_position = start_pos

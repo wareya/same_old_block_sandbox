@@ -41,13 +41,63 @@ var bitmask_cache = PackedByteArray()
 
 var voxels = PackedByteArray()
 
-func _adjust_val(x : float, n : float) -> float:
+static func _adjust_val(x : float, n : float) -> float:
     var s = sign(x)
     x = abs(x)
     x = 1.0 - x
     x = pow(x, n)
     x = s * (1.0 - x)
     return x
+
+static func height_at_global(noiser : Noise, x : float, z : float):
+    var pure_height = noiser.get_noise_2d(x, z)
+    var height = pure_height
+    
+    var f_factor = noiser.get_noise_3d(x*0.1, z*0.1, 50.0)*0.5 + 0.5
+    f_factor = lerp(0.4, 16.0, f_factor*f_factor*f_factor*f_factor)
+    height = _adjust_val(height, f_factor)
+    height += noiser.get_noise_2d(x*0.2 + 512.0, z*0.2 + 11.0) * 1.0
+    
+    var height_scale = noiser.get_noise_2d(x*0.1, z*0.1 + 154.0)*0.5 + 0.5
+    height = height * lerp(1.0, 12.0, height_scale)
+    
+    height += noiser.get_noise_2d(x*0.4 + 51.0, z*0.4 + 1301.0) * 5.0
+            
+    var rock_offset = noiser.get_noise_2d(z*2.6 + 151.0, x*2.6 + 11.0)*5.0
+    
+    pure_height = round(pure_height)
+    height = round(height)
+    rock_offset = round(rock_offset)
+    
+    return [pure_height, height, rock_offset]
+
+func get_tree_coords(noiser : Noise):
+    var rng = RandomNumberGenerator.new()
+    rng.seed = hash(chunk_position * Vector3(1.0, 0.0, 1.0))
+    var tree_count = rng.randi_range(3, 6)
+    
+    var offset = -Vector3.ONE*chunk_size/2 + chunk_position
+    var offset_2d = Vector2(offset.x, offset.z)
+    
+    var trees = []
+    for i in tree_count:
+        var buffer = 2 # FIXME: remove
+        var x = rng.randi_range(buffer, chunk_size-1-buffer)
+        var z = rng.randi_range(buffer, chunk_size-1-buffer)
+        
+        var c_2d = Vector2(x, z) + offset_2d
+        var info = Voxels.height_at_global(noiser, c_2d.x, c_2d.y)
+        var height = info[1]
+        var rock_part = info[2]
+        var is_rock = rock_part > 1.0
+        
+        if height >= 0 and !is_rock:
+            var c_3d = Vector3(x, height+1 - chunk_position.y + chunk_size/2, z)
+            var tall = rng.randi_range(4, 6)
+            var grunge = rng.randi()
+            trees.push_back([c_3d, tall, grunge])
+    
+    return trees
 
 func generate():
     var start = Time.get_ticks_usec()
@@ -56,50 +106,86 @@ func generate():
     bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
     
     var offset = -Vector3.ONE*chunk_size/2 + chunk_position
+    var offset_2d = Vector2(offset.x, offset.z)
     
     var noiser = world.base_noise
     
-    var i = -1
-    while i+1 < chunk_size*chunk_size*chunk_size:
-        i += 1
-        var c = Vector3(i%chunk_size, (i/chunk_size/chunk_size)%chunk_size, (i/chunk_size)%chunk_size) + offset
-        var height = noiser.get_noise_2d(c.x, c.z)
+    for z in chunk_size:
+        for x in chunk_size:
+            var c_2d = Vector2(x, z) + offset_2d
+            var info = Voxels.height_at_global(noiser, c_2d.x, c_2d.y)
+            
+            var pure_height = info[0]
+            var height = info[1]
+            var rock_offset = info[2]
+            
+            var h_i = coord_to_index(Vector3(x, 0, z))
+            
+            for y in chunk_size:
+                var c = Vector3(x, y, z) + offset
+            
+                var pure_noise = pure_height - c.y
+                
+                var noise = height - c.y
+                var noise_above = height - c.y - 1.0
+                
+                var rock_noise = noise + rock_offset
+                
+                var vox = 0
+                if noise < 0.0:
+                    vox = 0 # air
+                elif noise_above < 0.0 and c.y >= 0.0:
+                    vox = 1 # grass
+                else:
+                    vox = 2 # dirt
+                
+                if vox != 0 and rock_noise > 1.0:
+                    vox = 3 # rock
+                
+                if vox == 0 and c.y <= 0:
+                    vox = 6 # water
+                
+                var i = h_i + y*chunk_size*chunk_size
+                
+                voxels[i] = vox
+                side_cache[i] = 0xFF
+                for j in 6:
+                    bitmask_cache[i*6 + j] = 0x0
+    
+    var tree_coords = get_tree_coords(noiser)
+    for tree in tree_coords:
+        var coord = tree[0]
+        var tall = tree[1]
+        var grunge = tree[2]
         
-        var pure_noise = height - c.y
+        var leaf_bottom = max(2, tall-3)
         
-        var f_factor = world.base_noise.get_noise_3d(c.x*0.1, c.z*0.1, 50.0)*0.5 + 0.5
-        f_factor = lerp(0.4, 16.0, f_factor*f_factor*f_factor*f_factor)
-        height = _adjust_val(height, f_factor)
-        height += world.base_noise.get_noise_2d(c.x*0.2 + 512.0, c.z*0.2 + 11.0) * 1.0
+        for y in range(leaf_bottom, tall+1+(grunge%3)/2):
+            var range = 2
+            var evergreen = grunge & 256 != 0
+            if evergreen:
+                range -= (y+tall-leaf_bottom)%2
+            if y+1 > tall:
+                range -= 1
+            for z in range(-range, range+1):
+                for x in range(-range, range+1):
+                    var limit = range*range+0.25
+                    var fd = (grunge ^ hash(x) ^ hash(z) ^ hash(y))
+                    if fd%2 == 1:
+                        limit += 1.0
+                    if x*x + z*z > limit:
+                        continue
+                    var c2 = coord + Vector3(x, y, z)
+                    if bounds.has_point(c2):
+                        var index = Voxels.coord_to_index(c2)
+                        voxels[index] = 5
         
-        var height_scale = world.base_noise.get_noise_2d(c.x*0.1, c.z*0.1 + 154.0)*0.5 + 0.5
-        height = height * lerp(1.0, 12.0, height_scale)
-        
-        height += world.base_noise.get_noise_2d(c.x*0.4 + 51.0, c.z*0.4 + 1301.0) * 5.0
-        
-        var noise = height - c.y
-        var noise_above = height - c.y - 1.0
-        
-        var rock_noise = noise + world.base_noise.get_noise_2d(c.z*2.6 + 151.0, c.x*2.6 + 11.0)*5.0
-        
-        var vox = 0
-        if noise < 0.0:
-            vox = 0
-        elif noise_above < 0.0 and c.y >= 0.0:
-            vox = 1
-        else:
-            vox = 2
-        
-        if vox != 0 and rock_noise > 1.0:
-            vox = 3
-        
-        if vox == 0 and c.y < 0:
-            vox = 6
-        
-        voxels[i] = vox
-        side_cache[i] = 0xFF
-        for j in 6:
-            bitmask_cache[i*6 + j] = 0x0
+        for y in tall:
+            var c2 = coord + Vector3(0, y, 0)
+            if bounds.has_point(c2):
+                var index = Voxels.coord_to_index(c2)
+                voxels[index] = 4
+    
     print("gen time: ", (Time.get_ticks_usec() - start)/1000.0)
 
 
@@ -203,27 +289,28 @@ func remesh_get_arrays(target_type : int):
                 
                 var vox = voxels[vox_index]
                 var vox_type = Voxels.vox_get_type(vox)
+                var vox_alphatest = vox_type == 1
                 var vox_xparent = vox_type != 0
                 
                 if cached == 0xFF:
-                    
                     cached = 0x00
                     if voxel_is_target.call(vox, vox_type):
                         for d in 6:
                             var dir : Vector3 = dirs[d]
-                            var neighbor_coord : Vector3 = Vector3(x, y, z) + dir
-                            if bounds.has_point(neighbor_coord):
-                                var neighbor_index = (
-                                    neighbor_coord.y*chunk_size*chunk_size +
-                                    neighbor_coord.z*chunk_size +
-                                    neighbor_coord.x )
-                                var v = voxels[neighbor_index]
-                                if voxel_is_target.call(v, vox_type) or (vox_xparent and v != 0):
-                                    continue
-                            else:
-                                var neighbor = get_voxel.call(neighbor_coord + chunk_position)
-                                if voxel_is_target.call(neighbor, vox_type) or (vox_xparent and neighbor != 0):
-                                    continue
+                            if !vox_alphatest:
+                                var neighbor_coord : Vector3 = Vector3(x, y, z) + dir
+                                if bounds.has_point(neighbor_coord):
+                                    var neighbor_index = (
+                                        neighbor_coord.y*chunk_size*chunk_size +
+                                        neighbor_coord.z*chunk_size +
+                                        neighbor_coord.x )
+                                    var v = voxels[neighbor_index]
+                                    if voxel_is_target.call(v, vox_type) or (vox_xparent and v != 0):
+                                        continue
+                                else:
+                                    var neighbor = get_voxel.call(neighbor_coord + chunk_position)
+                                    if voxel_is_target.call(neighbor, vox_type) or (vox_xparent and neighbor != 0):
+                                        continue
                             
                             var bitmask : int = 0
                             var bit : int = 0
