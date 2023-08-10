@@ -88,45 +88,28 @@ func _process(_delta : float) -> void:
     if !remesh_work_thread.is_started():
         remesh_work_thread.start(remesh_work_loop)
     
-    var did_lock = world_work_wait_signal.try_lock()
-    if did_lock:
-        world_work_wait_signal.unlock()
-    else:
-        world_work_semaphore.post()
-    
-    did_lock = remesh_work_wait_signal.try_lock()
-    if did_lock:
-        remesh_work_wait_signal.unlock()
-    else:
-        remesh_work_semaphore.post()
-    
 var remesh_work_thread = Thread.new()
-var remesh_work_semaphore = Semaphore.new()
 var remesh_work_wait_signal = Mutex.new()
 
+signal _trigger_remesh
 func remesh_work_loop():
     while true:
-        remesh_work_wait_signal.lock()
-        remesh_work_semaphore.wait()
-        remesh_work_wait_signal.unlock()
-    
         dirty_chunk_mutex.lock()
         for chunk in dirty_chunks:
             chunk.process_and_remesh()
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
+        #emit_signal.bind("_trigger_remesh").call_deferred()
+        #await _trigger_remesh
+
 
 var world_work_thread = Thread.new()
-var world_work_semaphore = Semaphore.new()
 var world_work_wait_signal = Mutex.new()
 var world_work_num_unloaded = 0
 
+signal _trigger_world_work
 func dynamic_world_loop():
     while true:
-        world_work_wait_signal.lock()
-        world_work_semaphore.wait()
-        world_work_wait_signal.unlock()
-        
         dynamically_load_world()
 
 func find_chunk_load_queue(player_chunk):

@@ -279,6 +279,8 @@ func _process(delta: float) -> void:
         velocity.y = jumpvel
         if in_water:
             velocity.y *= 0.5
+        if Input.is_action_pressed("sprint"):
+            velocity.y *= 5.0
         floor_snap_length = 0.0
     elif started_process_on_floor:
         floor_snap_length = step_height + safe_margin
@@ -314,7 +316,7 @@ func _process(delta: float) -> void:
     
     #print(global_position.y)
     
-    if not is_on_floor():
+    if not is_on_floor(): 
         velocity.y -= gravity * delta * 0.5 * grav_mod
         velocity.y *= pow(drag, delta*10.0)
     
