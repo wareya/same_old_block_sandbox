@@ -308,14 +308,28 @@ func _process(delta: float) -> void:
     
     actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
     
-    if !check_chunk(start_pos, start_vel):
+    var chunk = check_chunk(start_pos, start_vel)
+    if !chunk:
         actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
-        check_chunk(start_pos, start_vel)
+        chunk = check_chunk(start_pos, start_vel)
+    
+    var is_solid = func(id : int): return id != 0 and id != 6
+    
+    if chunk:
+        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.0, 0))):
+            global_position.y += 0.5
+        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.5, 0))):
+            global_position.y += 0.5
+        if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.0, 0))):
+            global_position.y += 0.5
+        if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.5, 0))):
+            global_position.y += 0.5
     
     handle_camera_adjustment(start_pos, delta)
     add_collision_debug_visualizer(delta)
     
     cached_position = global_position
+    cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
 
 func check_chunk(start_pos, start_vel):
     var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
@@ -326,7 +340,9 @@ func check_chunk(start_pos, start_vel):
     var chunk_coord = world.get_chunk_coord(global_position)
     var chunk = world.chunks_loaded.get(chunk_coord)
     
+    
     if not chunk or not chunk.remeshed:
+        $DebugLabel.text = str(prev_chunk_coord)
         global_position = start_pos
         
         var d : Vector3 = prev_chunk_coord - chunk_coord
@@ -345,11 +361,12 @@ func check_chunk(start_pos, start_vel):
         else:
             velocity.z = 0
         
-        return false
+        return null
     else:
+        $DebugLabel.text = str(chunk_coord)
         var block_in = chunk.get_block(global_position)
         in_water = block_in == 6
-        return true
+        return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
     if not is_on_floor():
@@ -369,6 +386,7 @@ func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
 var in_water : bool = false
 
 var cached_position = Vector3()
+var cached_facing_dir = Vector3.FORWARD
 
 const stick_camera_speed = 240.0
 func handle_stick_input(_delta):

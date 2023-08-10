@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=17 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Texture2D" uid="uid://cx5ok6poub5d5" path="res://art/pixelsky.png" id="1_ooh8t"]
@@ -73,8 +73,13 @@ gradient = SubResource("Gradient_lacwj")
 width = 2
 height = 16
 
+[sub_resource type="LabelSettings" id="LabelSettings_dykyc"]
+outline_size = 5
+outline_color = Color(0, 0, 0, 1)
+shadow_size = 0
+
 [sub_resource type="LabelSettings" id="LabelSettings_7iqhx"]
-outline_size = 2
+outline_size = 5
 outline_color = Color(0, 0, 0, 1)
 
 [node name="World" type="Node3D" groups=["World"]]
@@ -141,6 +146,17 @@ texture_filter = 1
 material = SubResource("ShaderMaterial_1dhme")
 rotation = 1.57079
 texture = SubResource("GradientTexture2D_afcar")
+
+[node name="DebugLabel" type="Label" parent="Player"]
+anchors_preset = -1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -168.0
+offset_top = 1.0
+offset_right = -128.0
+offset_bottom = 24.0
+label_settings = SubResource("LabelSettings_dykyc")
+horizontal_alignment = 2
 
 [node name="FPS" type="Label" parent="."]
 offset_right = 40.0

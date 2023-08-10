@@ -80,7 +80,14 @@ func set_block(coord : Vector3, id : int):
 
 var time_alive = 0.0
 func _process(delta : float) -> void:
-    $FPS.text = "FPS: %s\nchunks to load: %s" % [Engine.get_frames_per_second(), world_work_num_unloaded]
+    $FPS.text = (
+        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s" %
+        [Engine.get_frames_per_second(),
+        world_work_num_unloaded,
+        chunks_loaded.size(),
+        all_chunks.size(),
+        ]
+    )
     
     if !world_work_thread.is_started():
         world_work_thread.start(dynamic_world_loop)
@@ -97,15 +104,23 @@ func _process(delta : float) -> void:
 var remesh_work_thread = Thread.new()
 var remesh_work_wait_signal = Mutex.new()
 
+func trigger_remesh_acceptance(dirty_chunk_list):
+    for chunk in dirty_chunk_list:
+        chunk.accept_remesh()
+
 signal _trigger_remesh
 func remesh_work_loop():
     var semaphore = Semaphore.new()
     while true:
         dirty_chunk_mutex.lock()
-        for chunk in dirty_chunks:
-            chunk.process_and_remesh()
+        var dirty_list_copy = dirty_chunks.duplicate()
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
+        
+        for chunk in dirty_list_copy:
+            chunk.process_and_remesh()
+        trigger_remesh_acceptance.bind(dirty_list_copy).call_deferred()
+        
         semaphore.post.call_deferred()
         semaphore.wait()
 
@@ -123,7 +138,7 @@ func dynamic_world_loop():
             semaphore.post.call_deferred()
             semaphore.wait()
 
-func find_chunk_load_queue(player_chunk):
+func find_chunk_load_queue(player_chunk, facing_dir):
     # 128 = 8 chunk distance
     # 256 = 16 chunk distance
     # 512 = 32 chunk distance
@@ -140,13 +155,29 @@ func find_chunk_load_queue(player_chunk):
                 
                 var c_global = c + player_chunk
                 
+                # wait... I need to use a mutex here...
                 if c_global in chunks_loaded:
                     continue
                 
                 unloaded_coords.push_back(c)
     
     world_work_num_unloaded = unloaded_coords.size()
-    unloaded_coords.sort_custom(func (a, b): return a.length() < b.length())
+    unloaded_coords.sort_custom(func (a, b):
+        var a_score = a.length()
+        var b_score = b.length()
+        # cos(60deg) = 0.5; roughly 120 horiz fov
+        if a_score > 30.0:
+            if (a/a_score).dot(facing_dir) < 0.2:
+                a_score += 200.0
+            elif (a/a_score).dot(facing_dir) < 0.5:
+                a_score += 20.0
+        if b_score > 30.0 and (b/b_score).dot(facing_dir) < 0.2:
+            if (b/b_score).dot(facing_dir) < 0.2:
+                b_score += 200.0
+            elif (b/b_score).dot(facing_dir) < 0.5:
+                b_score += 20.0
+        return a_score < b_score
+    )
     
     return unloaded_coords
 
@@ -157,9 +188,14 @@ func get_player_chunk_coord(no_y : bool = false):
         player_chunk.y = 0.0
     return player_chunk
 
+func get_player_facing_dir():
+    var player = DummySingleton.get_tree().get_first_node_in_group("Player")
+    return player.cached_facing_dir
+
 func dynamically_load_world():
     var player_chunk = get_player_chunk_coord()
-    var unloaded_coords = find_chunk_load_queue(player_chunk)
+    var facing_dir = get_player_facing_dir()
+    var unloaded_coords = find_chunk_load_queue(player_chunk, facing_dir)
     
     if unloaded_coords.size() > 0:
         var c_coord = unloaded_coords[0] + player_chunk

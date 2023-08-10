@@ -52,12 +52,16 @@ static func height_at_global(noiser : Noise, x : float, z : float):
     var pure_height = noiser.get_noise_2d(x, z)
     var height = pure_height
     
-    var f_factor = noiser.get_noise_3d(x*0.1, z*0.1, 50.0)*0.5 + 0.5
-    f_factor = lerp(0.4, 16.0, f_factor*f_factor*f_factor*f_factor)
-    height = _adjust_val(height, f_factor)
+    var steepness_freq = 0.5
+    
+    var steepness = noiser.get_noise_3d(x*steepness_freq, -z*steepness_freq + 100.0, 50.0)*0.5 + 0.5
+    steepness = lerp(0.4, 16.0, steepness*steepness*steepness*steepness)
+    height = _adjust_val(height, steepness)
     height += noiser.get_noise_2d(x*0.2 + 512.0, z*0.2 + 11.0) * 1.0
     
-    var height_scale = noiser.get_noise_2d(x*0.1, z*0.1 + 154.0)*0.5 + 0.5
+    var height_scale_freq = 0.5
+    
+    var height_scale = noiser.get_noise_2d(x*height_scale_freq, z*height_scale_freq + 154.0)*0.5 + 0.5
     height = height * lerp(1.0, 12.0, height_scale)
     
     height += noiser.get_noise_2d(x*0.4 + 51.0, z*0.4 + 1301.0) * 5.0
@@ -206,6 +210,7 @@ func initial_remesh(_force_wait : bool = false):
     force_wait = _force_wait
     alive = true
     process_and_remesh()
+    accept_remesh.call_deferred()
 
 static var dirs = [Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
 static var right_dirs = [Vector3.RIGHT, Vector3.LEFT, Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD]
@@ -551,10 +556,8 @@ func process_and_remesh():
 var force_wait : bool = false
 var _script : String = get_script().source_code
 var alive = false
-func _process(_delta: float) -> void:
-    if !alive:
-        return
-    
+
+func accept_remesh():
     remesh_output_mutex.lock()
     if remesh_output != []:
         print("got remesh")
