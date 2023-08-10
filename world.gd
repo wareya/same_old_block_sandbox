@@ -78,7 +78,6 @@ func set_block(coord : Vector3, id : int):
 
 @export var base_noise : Noise = null
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta : float) -> void:
     $FPS.text = "FPS: %s\nchunks to load: %s" % [Engine.get_frames_per_second(), world_work_num_unloaded]
     
@@ -93,14 +92,15 @@ var remesh_work_wait_signal = Mutex.new()
 
 signal _trigger_remesh
 func remesh_work_loop():
+    var semaphore = Semaphore.new()
     while true:
         dirty_chunk_mutex.lock()
         for chunk in dirty_chunks:
             chunk.process_and_remesh()
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
-        #emit_signal.bind("_trigger_remesh").call_deferred()
-        #await _trigger_remesh
+        semaphore.post.call_deferred()
+        semaphore.wait()
 
 
 var world_work_thread = Thread.new()
@@ -109,8 +109,11 @@ var world_work_num_unloaded = 0
 
 signal _trigger_world_work
 func dynamic_world_loop():
+    var semaphore = Semaphore.new()
     while true:
         dynamically_load_world()
+        semaphore.post.call_deferred()
+        semaphore.wait()
 
 func find_chunk_load_queue(player_chunk):
     var range_h = 128/Voxels.chunk_size/2
