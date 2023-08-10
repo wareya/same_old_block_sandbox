@@ -124,6 +124,9 @@ func dynamic_world_loop():
             semaphore.wait()
 
 func find_chunk_load_queue(player_chunk):
+    # 128 = 8 chunk distance
+    # 256 = 16 chunk distance
+    # 512 = 32 chunk distance
     var range_h = 256/Voxels.chunk_size/2
     var range_v = 64/Voxels.chunk_size/2
     
