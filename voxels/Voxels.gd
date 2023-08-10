@@ -1,10 +1,9 @@
 extends Node3D
 class_name Voxels
 
+#static var chunk_size = 16
 static var chunk_size = 16
 static var bounds : AABB = AABB(Vector3(), Vector3.ONE*(chunk_size-1))
-
-const threaded_remesh = true
 
 # top, bottom, side
 static var voxel_info = [
@@ -202,7 +201,6 @@ func do_generation(pos : Vector3):
     set_global_position.call_deferred(pos)
     chunk_position = pos
     generate()
-    dirty = true
 
 func initial_remesh(_force_wait : bool = false):
     force_wait = _force_wait
@@ -501,7 +499,6 @@ func set_block(coord : Vector3, id : int):
     block_command_mutex.lock()
     block_commands.push_back([coord, id])
     block_command_mutex.unlock()
-    dirty = true
 
 var dirty_command_mutex = Mutex.new()
 var dirty_commands = []
@@ -510,7 +507,6 @@ func dirty_block(coord : Vector3):
     dirty_command_mutex.lock()
     dirty_commands.push_back(coord)
     dirty_command_mutex.unlock()
-    dirty = true
 
 func _dirty_block(coord : Vector3):
     for y in range(-1, 2):
@@ -524,7 +520,6 @@ func dirty_sides():
     dirty_command_mutex.lock()
     dirty_commands.push_back(null)
     dirty_command_mutex.unlock()
-    dirty = true
     
 func _dirty_sides():
     for y in chunk_size:
@@ -555,16 +550,10 @@ func process_and_remesh():
 
 var force_wait : bool = false
 var _script : String = get_script().source_code
-var dirty : bool = false
 var alive = false
 func _process(_delta: float) -> void:
     if !alive:
         return
-    
-    if dirty: 
-        dirty = false
-        if !threaded_remesh:
-            process_and_remesh()
     
     remesh_output_mutex.lock()
     if remesh_output != []:

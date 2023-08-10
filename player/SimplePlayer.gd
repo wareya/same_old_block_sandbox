@@ -266,8 +266,6 @@ func probe_probable_step_height():
         return clamp(highest/2.0 + lowest/2.0, 0.0, step_height)
 
 func _process(delta: float) -> void:
-    var start_pos = global_position
-    var start_vel = velocity
     
     started_process_on_floor = is_on_floor()
     # for controller camera control
@@ -305,11 +303,58 @@ func _process(delta: float) -> void:
             grav_mod = 0.4
         drag = 0.5
     
+    var start_pos = global_position
+    var start_vel = velocity
+    
+    actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
+    
+    if !check_chunk(start_pos, start_vel):
+        actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
+        check_chunk(start_pos, start_vel)
+    
+    handle_camera_adjustment(start_pos, delta)
+    add_collision_debug_visualizer(delta)
+    
+    cached_position = global_position
+
+func check_chunk(start_pos, start_vel):
+    var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
+    
+    var prev_chunk_coord = world.get_chunk_coord(start_pos)
+    var prev_chunk = world.chunks_loaded.get(prev_chunk_coord)
+    
+    var chunk_coord = world.get_chunk_coord(global_position)
+    var chunk = world.chunks_loaded.get(chunk_coord)
+    
+    if not chunk or not chunk.remeshed:
+        global_position = start_pos
+        
+        var d : Vector3 = prev_chunk_coord - chunk_coord
+        d = d.clamp(-Vector3.ONE, Vector3.ONE)
+        
+        velocity = start_vel
+        if d.y != 0:
+            velocity.y = 0
+        
+        if d.x == 0 and d.z != 0:
+            velocity.z = 0
+        elif d.z == 0 and d.x != 0:
+            velocity.x = 0
+        elif abs(velocity.x) < abs(velocity.z):
+            velocity.x = 0
+        else:
+            velocity.z = 0
+        
+        return false
+    else:
+        var block_in = chunk.get_block(global_position)
+        in_water = block_in == 6
+        return true
+
+func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
     if not is_on_floor():
         velocity.y -= gravity * delta * 0.5 * grav_mod
         velocity.y *= pow(drag, delta*10.0)
-    
-    var start_position = global_position
     
     # CHANGE ME: replace this with your own movement-and-stair-climbing code
     move_and_climb_stairs(delta, allow_stair_snapping)
@@ -320,19 +365,6 @@ func _process(delta: float) -> void:
         velocity.y -= gravity * delta * 0.5 * grav_mod
         velocity.y *= pow(drag, delta*10.0)
     
-    handle_camera_adjustment(start_position, delta)
-    add_collision_debug_visualizer(delta)
-    
-    var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
-    var chunk_coord = world.get_chunk_coord(global_position)
-    var chunk = (world.chunks_loaded as Dictionary).get(chunk_coord)
-    if not chunk or not chunk.remeshed:
-        global_position = start_pos
-    else:
-        var block_in = chunk.get_block(global_position)
-        in_water = block_in == 6
-    
-    cached_position = global_position
 
 var in_water : bool = false
 
