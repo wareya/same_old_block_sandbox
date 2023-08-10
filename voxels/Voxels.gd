@@ -47,7 +47,7 @@ func generate():
         var pure_noise = height - c.y
         
         var f_factor = world.base_noise.get_noise_3d(c.x*0.1, c.z*0.1, 50.0)*0.5 + 0.5
-        f_factor = lerp(0.4, 16.0, f_factor*f_factor*f_factor)
+        f_factor = lerp(0.4, 16.0, f_factor*f_factor*f_factor*f_factor)
         height = _adjust_val(height, f_factor)
         height += world.base_noise.get_noise_2d(c.x*0.2 + 512.0, c.z*0.2 + 11.0) * 1.0
         
@@ -59,6 +59,8 @@ func generate():
         var noise = height - c.y
         var noise_above = height - c.y - 1.0
         
+        var rock_noise = noise + world.base_noise.get_noise_2d(c.z*2.6 + 151.0, c.x*2.6 + 11.0)*5.0
+        
         var vox = 0
         if noise < 0.0:
             vox = 0
@@ -67,7 +69,7 @@ func generate():
         else:
             vox = 2
         
-        if vox != 0 and pure_noise > 1.5:
+        if vox != 0 and rock_noise > 1.0:
             vox = 3
         
         voxels[i] = vox
@@ -88,7 +90,7 @@ func _ready() -> void:
 
 var chunk_position = Vector3()
 func do_generation(pos : Vector3):
-    global_position = pos
+    set_global_position.call_deferred(pos)
     chunk_position = pos
     generate()
     dirty = true
@@ -96,9 +98,7 @@ func do_generation(pos : Vector3):
 func initial_remesh(_force_wait : bool = false):
     force_wait = _force_wait
     alive = true
-    
-    if threaded_remesh:
-        remesh_thread.start(async_remesh)
+    process_and_remesh()
 
 static var dirs = [Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
 static var right_dirs = [Vector3.RIGHT, Vector3.LEFT, Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD]
@@ -125,9 +125,10 @@ static var vert_table = generate_verts()
 var remesh_output_mutex = Mutex.new()
 var remesh_output = []
 
-@onready var world : World = get_tree().get_first_node_in_group("World")
+var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
 var neighbor_chunks = {}
+var remeshed = false
 func remesh():
     print("in remesh()")
     neighbor_chunks = {}
@@ -367,7 +368,7 @@ var block_commands = []
 
 func set_block(coord : Vector3, id : int):
     coord += Vector3.ONE*chunk_size/2
-    coord -= global_position
+    coord -= chunk_position
     coord = coord.round()
     
     # if the id is real, change the voxel
@@ -418,34 +419,16 @@ func _dirty_sides():
         for x in chunk_size:
             side_cache[Voxels.coord_to_index(Vector3(x, 0, z))] = 0xFF
             side_cache[Voxels.coord_to_index(Vector3(x, chunk_size-1, z))] = 0xFF
-    
-            
 
 var remesh_semaphore = Semaphore.new()
 var remesh_thread = Thread.new()
-var remesh_exit : bool = false
 
-var remesh_finished_semaphore = Semaphore.new()
-func async_remesh():
-    while true:
-        remesh_semaphore.wait()
-        
-        if remesh_exit:
-            return
-        
-        block_command_mutex.lock()
-        for data in block_commands:
-            dirty_block(data[0])
-        block_commands = []
-        block_command_mutex.unlock()
-        
-        remesh()
-        remesh_finished_semaphore.post()
-
-func sync_remesh():
+func process_and_remesh():
+    block_command_mutex.lock()
     for data in block_commands:
         dirty_block(data[0])
     block_commands = []
+    block_command_mutex.unlock()
     remesh()
 
 var force_wait : bool = false
@@ -455,31 +438,11 @@ var alive = false
 func _process(_delta: float) -> void:
     if !alive:
         return
-    # hot reloading watchdog
-    if _script != get_script().source_code:
-        _script = get_script().source_code
-        # the previous thread is attached to a now-invalid script instance
-        # so we can't use it AT ALL, or risk crashing
-        remesh_semaphore = Semaphore.new()
-        remesh_thread = Thread.new()
-    
-    if !remesh_thread.is_alive():
-        if remesh_thread.is_started():
-            remesh_thread.wait_to_finish()
-        remesh_thread.start(async_remesh)
     
     if dirty: 
         dirty = false
-        if threaded_remesh:
-            remesh_semaphore.post()
-            if force_wait:
-                print("waiting for semaphore")
-                remesh_finished_semaphore.wait()
-                force_wait = false
-                print("done")
-            print("posting to async")
-        else:
-            sync_remesh()
+        if !threaded_remesh:
+            process_and_remesh()
     
     remesh_output_mutex.lock()
     if remesh_output != []:
@@ -513,6 +476,8 @@ func _process(_delta: float) -> void:
             body_child.shape_owner_remove_shape(0, 0)
         if mesh_collision != null:
             body_child.shape_owner_add_shape(0, mesh_collision)
+        
+        remeshed = true
     else:
         remesh_output_mutex.unlock()
     

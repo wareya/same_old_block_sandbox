@@ -39,8 +39,8 @@ func handle_accel(delta):
         var actual_accel = (accel if is_on_floor() else accel_air) * actual_maxspeed * wish_dir_length
         
         if Input.is_action_pressed("sprint"):
-            actual_maxspeed *= 2.0
-            actual_accel *= 2.0
+            actual_maxspeed *= 20.0
+            actual_accel *= 20.0
         
         var floor_velocity = Vector3(velocity.x, 0, velocity.z)
         var speed_in_wish_dir = floor_velocity.dot(wish_dir.normalized())
@@ -256,6 +256,9 @@ func probe_probable_step_height():
         return clamp(highest/2.0 + lowest/2.0, 0.0, step_height)
 
 func _process(delta: float) -> void:
+    var start_pos = global_position
+    var start_vel = velocity
+    
     started_process_on_floor = is_on_floor()
     # for controller camera control
     #handle_stick_input(delta)
@@ -294,6 +297,17 @@ func _process(delta: float) -> void:
     
     handle_camera_adjustment(start_position, delta)
     add_collision_debug_visualizer(delta)
+    
+    var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
+    var chunk_coord = world.get_player_chunk_coord()
+    var chunk = (world.chunks_loaded as Dictionary).get(chunk_coord)
+    if not chunk or not chunk.remeshed:
+        global_position = start_pos
+        velocity = start_vel
+    
+    cached_position = global_position
+
+var cached_position = Vector3()
 
 const stick_camera_speed = 240.0
 func handle_stick_input(_delta):

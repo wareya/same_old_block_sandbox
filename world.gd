@@ -8,7 +8,7 @@ var all_chunks = {}
 
 func load_chunk(coord = Vector3()):
     var vox = Voxels.new()
-    add_child(vox)
+    add_child.call_deferred(vox)
     vox.do_generation(coord)
     return vox
 
@@ -33,10 +33,20 @@ static func get_chunk_coord(coord):
     var chunk_coord = ((coord + Vector3.ONE*0.5) / Voxels.chunk_size).round() * Voxels.chunk_size
     return chunk_coord
 
+var dirty_chunk_mutex = Mutex.new()
+var dirty_chunks = []
+
 func set_block(coord : Vector3, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
     if chunk_coord in chunks_loaded:
-        chunks_loaded[chunk_coord].set_block(coord, id)
+        var chunk = chunks_loaded[chunk_coord]
+        chunk.set_block(coord, id)
+        
+        dirty_chunk_mutex.lock()
+        print("dirtying chunk...")
+        dirty_chunks.push_back(chunk)
+        dirty_chunk_mutex.unlock()
+            
         var c = coord.round() - chunk_coord + Vector3.ONE*Voxels.chunk_size/2
         if (c.x == 0 or c.y == 0 or c.z == 0
             or c.x+1 == Voxels.chunk_size or c.y+1 == Voxels.chunk_size or c.z+1 == Voxels.chunk_size):
@@ -53,8 +63,14 @@ func set_block(coord : Vector3, id : int):
             
             if chunk_coord in neighbor_chunk_coords:
                 neighbor_chunk_coords.erase(chunk_coord)
+            
+            
+            dirty_chunk_mutex.lock()
             for neighbor_chunk in neighbor_chunk_coords.values():
                 neighbor_chunk.set_block(coord, -1)
+                dirty_chunks.push_back(neighbor_chunk)
+            dirty_chunk_mutex.unlock()
+            
             
         print(c)
     else:
@@ -66,15 +82,33 @@ func set_block(coord : Vector3, id : int):
 func _process(_delta : float) -> void:
     $FPS.text = str(Engine.get_frames_per_second())
     
-    dynamically_load_world()
+    if !world_work_thread.is_started():
+        world_work_thread.start(dynamic_world_loop)
+    
+    world_work_semaphore.post()
+    #find_chunk_load_queue(player_chunk)
 
-func dynamically_load_world():
+
+var world_work_thread = Thread.new()
+var world_work_semaphore = Semaphore.new()
+var world_work_mutex = Mutex.new()
+var world_work_queue = []
+func dynamic_world_loop():
+    while true:
+        world_work_semaphore.wait()
+        dynamically_load_world()
+    
+        print("checking chunks")
+        dirty_chunk_mutex.lock()
+        for chunk in dirty_chunks:
+            print("remeshing chunk...")
+            chunk.process_and_remesh()
+        dirty_chunks = []
+        dirty_chunk_mutex.unlock()
+
+func find_chunk_load_queue(player_chunk):
     var range_h = 128/Voxels.chunk_size/2
     var range_v = 64/Voxels.chunk_size/2
-    
-    var player = get_tree().get_first_node_in_group("Player")
-    var player_chunk = get_chunk_coord(player.global_position)
-    player_chunk.y = 0.0
     
     var unloaded_coords = []
     for y in range(-range_v, range_v+1):
@@ -92,6 +126,19 @@ func dynamically_load_world():
                 unloaded_coords.push_back(c)
     
     unloaded_coords.sort_custom(func (a, b): return a.length() < b.length())
+    
+    return unloaded_coords
+
+func get_player_chunk_coord(no_y : bool = false):
+    var player = DummySingleton.get_tree().get_first_node_in_group("Player")
+    var player_chunk = get_chunk_coord(player.cached_position)
+    if no_y:
+        player_chunk.y = 0.0
+    return player_chunk
+
+func dynamically_load_world():
+    var player_chunk = get_player_chunk_coord(true)
+    var unloaded_coords = find_chunk_load_queue(player_chunk)
     
     if unloaded_coords.size() > 0:
         var c_coord = unloaded_coords[0] + player_chunk
@@ -117,4 +164,3 @@ func dynamically_load_world():
         
         chunks_loaded[c_coord] = vox
     
-    pass
