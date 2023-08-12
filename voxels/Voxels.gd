@@ -102,6 +102,9 @@ func get_tree_coords(noiser : Noise):
     
     return trees
 
+static func _generate_internal(_voxels : PackedByteArray, _side_cache : PackedByteArray):
+    pass
+
 func generate():
     var start = Time.get_ticks_usec()
     voxels.resize(chunk_size*chunk_size*chunk_size)
@@ -118,16 +121,16 @@ func generate():
             var c_2d = Vector2(x, z) + offset_2d
             var info = Voxels.height_at_global(noiser, c_2d.x, c_2d.y)
             
-            var pure_height = info[0]
+            #var pure_height = info[0]
             var height = info[1]
             var rock_offset = info[2]
             
-            var h_i = coord_to_index(Vector3(x, 0, z))
+            var h_i = Voxels.coord_to_index(Vector3(x, 0, z))
             
             for y in chunk_size:
                 var c = Vector3(x, y, z) + offset
             
-                var pure_noise = pure_height - c.y
+                #var pure_noise = pure_height - c.y
                 
                 var noise = height - c.y
                 var noise_above = height - c.y - 1.0
@@ -164,15 +167,15 @@ func generate():
         var leaf_bottom = max(2, tall-3)
         
         for y in range(leaf_bottom, tall+1+(grunge%3)/2):
-            var range = 2
+            var _range = 2
             var evergreen = grunge & 256 != 0
             if evergreen:
-                range -= (y+tall-leaf_bottom)%2
+                _range -= (y+tall-leaf_bottom)%2
             if y+1 > tall:
-                range -= 1
-            for z in range(-range, range+1):
-                for x in range(-range, range+1):
-                    var limit = range*range+0.25
+                _range -= 1
+            for z in range(-_range, _range+1):
+                for x in range(-_range, _range+1):
+                    var limit = _range*_range+0.25
                     var fd = (grunge ^ hash(x) ^ hash(z) ^ hash(y))
                     if fd%2 == 1:
                         limit += 1.0
@@ -292,7 +295,7 @@ func remesh_get_arrays(target_type : int):
                 
                 var vox = voxels[vox_index]
                 var vox_type = Voxels.vox_get_type(vox)
-                var vox_alphatest = vox_type == 1
+                var vox_atest = vox_type == 1
                 var vox_xparent = vox_type != 0
                 
                 if cached == 0xFF:
@@ -300,7 +303,7 @@ func remesh_get_arrays(target_type : int):
                     if voxel_is_target.call(vox, vox_type):
                         for d in 6:
                             var dir : Vector3 = dirs[d]
-                            if !vox_alphatest:
+                            if !vox_atest:
                                 var neighbor_coord : Vector3 = Vector3(x, y, z) + dir
                                 if bounds.has_point(neighbor_coord):
                                     var neighbor_index = (
@@ -554,7 +557,6 @@ func process_and_remesh():
     remesh_work_mutex.unlock()
 
 var force_wait : bool = false
-var _script : String = get_script().source_code
 var alive = false
 
 func accept_remesh():
