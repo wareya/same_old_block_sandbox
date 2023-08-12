@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=23 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Texture2D" uid="uid://cx5ok6poub5d5" path="res://art/pixelsky.png" id="1_ooh8t"]
@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://13vpsqnaru7t" path="res://art/ui_d.png" id="7_x0mo3"]
 [ext_resource type="Texture2D" uid="uid://c02rxtjo1ive8" path="res://art/ui_e.png" id="8_0jfdd"]
 [ext_resource type="Texture2D" uid="uid://clav75neu5yjm" path="res://art/ui_b.png" id="8_jfhdr"]
+[ext_resource type="Script" path="res://InventoryItem.gd" id="11_wpjn5"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
 noise_type = 0
@@ -637,6 +638,7 @@ patch_margin_left = 12
 patch_margin_top = 12
 patch_margin_right = 12
 patch_margin_bottom = 12
+script = ExtResource("11_wpjn5")
 
 [node name="NinePatchRect2" type="NinePatchRect" parent="Player/ActiveInventory"]
 custom_minimum_size = Vector2(48, 48)
