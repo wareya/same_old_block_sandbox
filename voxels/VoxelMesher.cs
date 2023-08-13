@@ -72,11 +72,10 @@ public partial class VoxelMesher : RefCounted
     
     byte[] bitmask_cache = new byte[VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*6];
     
-    Godot.Collections.Array remesh_get_arrays(byte[] voxels, int target_type, Vector3 chunk_position, Godot.Collections.Dictionary neighbor_chunks)
+    public byte[] side_cache;
+    
+    Godot.Collections.Array remesh_get_arrays(int target_type, Vector3 chunk_position, Godot.Collections.Dictionary neighbor_chunks)
     {
-        var voxels_script = ResourceLoader.Load<GDScript>("res://voxels/Voxels.gd");
-        voxels_script.Get("voxel_info");
-        
         int chunk_size = VoxelGenerator.chunk_size;
         var bounds = VoxelGenerator.bounds;
         
@@ -91,6 +90,8 @@ public partial class VoxelMesher : RefCounted
         Dictionary<Vector3, byte[]> neighbors = new Dictionary<Vector3, byte[]>();
         foreach (var k in neighbor_chunks.Keys)
             neighbors[(Vector3)k] = (byte[])neighbor_chunks[k];
+        
+        byte[] voxels = neighbors[chunk_position];
         
         var get_voxel = int (Vector3 global_coord) =>
         {
@@ -109,8 +110,7 @@ public partial class VoxelMesher : RefCounted
         };
         
         var verts = new List<Vector3>();
-        var normals = new List<Vector3>();
-        var tex_indexes = new List<Vector2>();
+        var face_info = new List<byte>();
         var indexes = new List<int>();
         
         var start = Time.GetTicksUsec();
@@ -139,7 +139,7 @@ public partial class VoxelMesher : RefCounted
                 foreach (var x in Enumerable.Range(0, chunk_size))
                 {
                     var vox_index = y*chunk_size*chunk_size + z*chunk_size + x;
-                    byte cached = 0xFF;//side_cache[vox_index];
+                    byte cached = side_cache[vox_index];
                     
                     var vox = voxels[vox_index];
                     var vox_type = vox_get_type(vox);
@@ -232,7 +232,7 @@ public partial class VoxelMesher : RefCounted
                                 cached |= (byte)(1<<d);
                             }
                         }
-                        //side_cache[vox_index] = cached;
+                        side_cache[vox_index] = cached;
                     }
                     
                     if (cached == 0x00 || !voxel_is_target(vox, target_type))
@@ -319,8 +319,13 @@ public partial class VoxelMesher : RefCounted
                                     {
                                         var v = vert_table[d*4 + i];
                                         verts.Add(coord + v);
-                                        normals.Add(dir);
-                                        tex_indexes.Add(new Vector2((float)array_index, (float)bitmask));
+                                        
+                                        var index_a = (byte)(array_index >> 8);
+                                        var index_b = (byte)(array_index & 0xFF);
+                                        face_info.Add((byte)d);
+                                        face_info.Add(index_a);
+                                        face_info.Add(index_b);
+                                        face_info.Add(bitmask);
                                     }
                                     foreach (var i in new int[]{0, 1, 2, 2, 1, 3})
                                         indexes.Add(i_start + i);
@@ -340,8 +345,7 @@ public partial class VoxelMesher : RefCounted
         var arrays = new Godot.Collections.Array();
         arrays.Resize((int)Mesh.ArrayType.Max);
         arrays[(int)Mesh.ArrayType.Vertex] = verts.ToArray();
-        arrays[(int)Mesh.ArrayType.Normal] = normals.ToArray();
-        arrays[(int)Mesh.ArrayType.TexUV2] = tex_indexes.ToArray();
+        arrays[(int)Mesh.ArrayType.Custom0] = face_info.ToArray();
         arrays[(int)Mesh.ArrayType.Index] = indexes.ToArray();
         return arrays;
     }

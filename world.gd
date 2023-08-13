@@ -132,14 +132,14 @@ var world_work_num_unloaded = -1
 signal _trigger_world_work
 func dynamic_world_loop():
     var semaphore = Semaphore.new()
-    #var start = Time.get_ticks_usec()
+    var start = Time.get_ticks_usec()
     while true:
         dynamically_load_world()
-        #var elapsed_msec = (Time.get_ticks_usec() - start)/1000.0
-        if world_work_num_unloaded == 0:# or elapsed_msec > 50.0:
+        var elapsed_msec = (Time.get_ticks_usec() - start)/1000.0
+        if world_work_num_unloaded == 0 or elapsed_msec > 50.0:
             semaphore.post.call_deferred()
             semaphore.wait()
-            #start = Time.get_ticks_usec()
+            start = Time.get_ticks_usec()
 
 var _find_chunks_prev_player_chunk = Vector3()
 var _find_chunks_unloaded_coords = []
