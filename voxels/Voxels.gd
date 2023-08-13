@@ -182,7 +182,8 @@ static func _generate_internal(
                 var index = Voxels.coord_to_index(c2)
                 _voxels[index] = 4
 
-var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
+static var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
+var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func generate():
     var start = Time.get_ticks_usec()
@@ -195,10 +196,12 @@ func generate():
     var offset_2d = Vector2(offset.x, offset.z)
     var noiser = world.base_noise
     
+    #voxels.resize(chunk_size*chunk_size*chunk_size)
     #Voxels._generate_internal(noiser, voxels, chunk_position, offset, offset_2d)
+    
     voxels = VoxelGenerator._Generate(noiser, chunk_position, offset, offset_2d)
     
-    print("gen time: ", (Time.get_ticks_usec() - start)/1000.0)
+    #print("gen time: ", (Time.get_ticks_usec() - start)/1000.0)
 
 
 var meshinst_child = MeshInstance3D.new()
@@ -258,14 +261,13 @@ func remesh_get_arrays(target_type : int):
     var get_voxel = func(global_coord : Vector3):
         var chunk_coord = World.get_chunk_coord(global_coord - Vector3.ONE*chunk_size/2)
         if chunk_coord in neighbor_chunks:
-            var chunk : Voxels = neighbor_chunks[chunk_coord]
-            var local_coord = global_coord - chunk.chunk_position
-            #print(local_coord)
+            var neighbor_voxels = neighbor_chunks[chunk_coord]
+            var local_coord = global_coord - chunk_coord
             var index = (
                 local_coord.y*chunk_size*chunk_size +
                 local_coord.z*chunk_size +
                 local_coord.x )
-            return chunk.voxels[index]
+            return neighbor_voxels[index]
         return 0
     
     var verts = PackedVector3Array()
@@ -452,6 +454,8 @@ func remesh_get_arrays(target_type : int):
 var neighbor_chunks = {}
 var remeshed = false
 func remesh():
+    var start = Time.get_ticks_usec()
+    
     #print("in remesh()")
     neighbor_chunks = {}
     world.chunk_table_mutex.lock()
@@ -460,7 +464,7 @@ func remesh():
             for x in range(-1, 2):
                 var c = Vector3(x, y, z)*chunk_size + chunk_position
                 if c in world.all_chunks:
-                    neighbor_chunks[c] = world.all_chunks[c]
+                    neighbor_chunks[c] = world.all_chunks[c].voxels
     world.chunk_table_mutex.unlock()
     
     dirty_command_mutex.lock()
@@ -473,13 +477,12 @@ func remesh():
     dirty_commands = []
     dirty_command_mutex.unlock()
     
-    var start = Time.get_ticks_usec()
-    
-    var solid_arrays = remesh_get_arrays(0)
-    var atest_arrays = remesh_get_arrays(1)
-    var trans_arrays = remesh_get_arrays(2)
-    
-    print("remesh time: ", (Time.get_ticks_usec() - start)/1000.0)
+    var solid_arrays = VoxelMesher.remesh_get_arrays(voxels, 0, chunk_position, neighbor_chunks)
+    var atest_arrays = VoxelMesher.remesh_get_arrays(voxels, 1, chunk_position, neighbor_chunks)
+    var trans_arrays = VoxelMesher.remesh_get_arrays(voxels, 2, chunk_position, neighbor_chunks)
+    #var solid_arrays = remesh_get_arrays(0)
+    #var atest_arrays = remesh_get_arrays(1)
+    #var trans_arrays = remesh_get_arrays(2)
     
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()
@@ -487,6 +490,8 @@ func remesh():
     #print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
     #print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
     remesh_output_mutex.unlock()
+    
+    #print("remesh time: ", (Time.get_ticks_usec() - start)/1000.0)
 
 var block_command_mutex = Mutex.new()
 var block_commands = []
@@ -571,13 +576,14 @@ var alive = false
 func accept_remesh():
     remesh_output_mutex.lock()
     if remesh_output != []:
+        var start = Time.get_ticks_usec()
         
         var mesh_collision = []
         
         var mesh_child = ArrayMesh.new()
         
         var add_arrays = func(arrays, mat, solid):
-            if arrays.size() > 0 and arrays[0].size() > 0:
+            if arrays and arrays.size() > 0 and arrays[0].size() > 0:
                 mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
                 var id = mesh_child.get_surface_count() - 1
                 mesh_child.surface_set_material(id, mat)
@@ -605,6 +611,8 @@ func accept_remesh():
         
         for mesh in mesh_collision:
             body_child.shape_owner_add_shape(0, mesh)
+        
+        #print("accept time: ", (Time.get_ticks_usec() - start)/1000.0)
         
         remeshed = true
     else:

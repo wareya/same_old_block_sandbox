@@ -3,7 +3,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
-public partial class VoxelGenerator : Node
+public partial class VoxelGenerator : RefCounted
 {
     static float _adjust_val(float x, float n)
     {
@@ -41,8 +41,8 @@ public partial class VoxelGenerator : Node
         
         return ((int)pure_height, (int)height, (int)rock_offset);
     }
-    static int chunk_size = 16;
-    static Aabb bounds = new Aabb(new Vector3(), Vector3.One*(chunk_size-1));
+    public static int chunk_size = 16;
+    public static Aabb bounds = new Aabb(new Vector3(), Vector3.One*(chunk_size-1));
     static List<(Vector3, int, uint)> get_tree_coords(Vector3 chunk_position, Noise noiser)
     {
         var rng = new RandomNumberGenerator();
