@@ -75,6 +75,15 @@ func do_generation(pos : Vector3):
     chunk_position = pos
     generate()
 
+func load_generation(pos : Vector3, _voxels : PackedByteArray):
+    side_cache.resize(chunk_size*chunk_size*chunk_size)
+    side_cache.fill(0xFF)
+    bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
+    bitmask_cache.fill(0x0)
+    
+    chunk_position = pos
+    voxels = _voxels
+
 static var dirs = [Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
 static var right_dirs = [Vector3.RIGHT, Vector3.LEFT, Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD]
 static var up_dirs = [Vector3.FORWARD, Vector3.BACK, Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP]
