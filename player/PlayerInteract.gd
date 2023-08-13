@@ -44,7 +44,7 @@ func _ready() -> void:
     mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
     mesh_instance_child.material_override = mat
 
-@onready var world : World = get_tree().get_first_node_in_group("World")
+@onready var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta : float) -> void:

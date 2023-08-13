@@ -63,24 +63,17 @@ func generate():
 
 
 var meshinst_child = MeshInstance3D.new()
+var meshinst_childed : bool = false
 var body_child = StaticBody3D.new()
+var body_childed : bool = false
+
 func _ready() -> void:
-    #print("voxels ready!")
-    
-    add_child(meshinst_child)
-    add_child(body_child)
+    pass
 
 var chunk_position = Vector3()
 func do_generation(pos : Vector3):
-    set_global_position.call_deferred(pos)
     chunk_position = pos
     generate()
-
-func initial_remesh(_force_wait : bool = false):
-    force_wait = _force_wait
-    alive = true
-    process_and_remesh()
-    accept_remesh.call_deferred()
 
 static var dirs = [Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
 static var right_dirs = [Vector3.RIGHT, Vector3.LEFT, Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD]
@@ -226,9 +219,6 @@ func process_and_remesh():
     remesh()
     remesh_work_mutex.unlock()
 
-var force_wait : bool = false
-var alive = false
-
 func accept_remesh():
     remesh_output_mutex.lock()
     if remesh_output != []:
@@ -238,13 +228,17 @@ func accept_remesh():
         
         var mesh_child = ArrayMesh.new()
         
+        var mesh_added = [false]
+        var collision_added = [false]
         var add_arrays = func(arrays, mat, solid):
             if arrays and arrays.size() > 0 and arrays[0].size() > 0:
+                mesh_added[0] = true
                 var flags = (Mesh.ARRAY_CUSTOM_RGBA8_UNORM << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
                 mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
                 var id = mesh_child.get_surface_count() - 1
                 mesh_child.surface_set_material(id, mat)
                 if solid:
+                    collision_added[0] = true
                     mesh_collision.push_back(mesh_child.create_trimesh_shape())
             return mesh_child
         
@@ -259,15 +253,32 @@ func accept_remesh():
         
         remesh_output_mutex.unlock()
         
-        meshinst_child.mesh = mesh_child
+        if mesh_added[0]:
+            meshinst_child.mesh = mesh_child
+            if !meshinst_childed:
+                add_child(meshinst_child)
+                meshinst_childed = true
+        else:
+            meshinst_child.mesh = null
+            if meshinst_childed:
+                remove_child(meshinst_child)
+                meshinst_childed = false
         
         if body_child.get_shape_owners().size() == 0:
             body_child.create_shape_owner(body_child)
         while body_child.shape_owner_get_shape_count(0) > 0:
             body_child.shape_owner_remove_shape(0, 0)
         
-        for mesh in mesh_collision:
-            body_child.shape_owner_add_shape(0, mesh)
+        if collision_added[0]:
+            for mesh in mesh_collision:
+                body_child.shape_owner_add_shape(0, mesh)
+            if !body_childed:
+                add_child(body_child)
+                body_childed = true
+        else:
+            if body_childed:
+                remove_child(body_child)
+                body_childed = false
         
         #print("accept time: ", (Time.get_ticks_usec() - _start)/1000.0)
         

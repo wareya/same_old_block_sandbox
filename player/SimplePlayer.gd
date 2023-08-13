@@ -326,7 +326,7 @@ func _process(delta: float) -> void:
             global_position.y += 0.5
     
     handle_camera_adjustment(start_pos, delta)
-    add_collision_debug_visualizer(delta)
+    #add_collision_debug_visualizer(delta)
     
     cached_position = global_position
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
@@ -496,7 +496,7 @@ func add_collision_debug_visualizer(delta):
                 visualizer.mesh = _collision_debug_mesh
             else:
                 visualizer.mesh = _collision_debug_mesh_unwalkable
-            get_tree().current_scene.add_child(visualizer)
+            DummySingleton.get_tree().current_scene.add_child(visualizer)
             if normal.round().abs() != Vector3.UP:
                 visualizer.look_at_from_position(Vector3(), normal)
             else:
