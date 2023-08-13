@@ -8,43 +8,53 @@ var all_chunks = {}
 
 var backing_file : FileAccess = null
 func _init():
+    open_save()
+    print(backing_file)
+
+var f_access_mutex = Mutex.new()
+var f_index_table = {}
+
+static var f_chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
+static var f_chunk_header_bytes = 8*4 # three signed i64s for position plus a padding/metadata i64
+
+func open_save():
+    f_access_mutex.lock()
+    
     var fname = "user://classicbox_world0.bin"
     backing_file = FileAccess.open(fname, FileAccess.READ_WRITE)
     if !backing_file:
         backing_file = FileAccess.open(fname, FileAccess.WRITE)
-    print(backing_file)
-
-var f_access_mutex = Mutex.new()
-func trigger_save(chunks_to_save : Array):
-    if chunks_to_save.size() == 0:
-        return
     
-    f_access_mutex.lock()
-    var chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
-    var chunk_storage_size = chunk_bytes + 8*4 # three signed i64s for position plus a padding/metadata i64
-    
-    var dirty_coords = {}
-    for chunk in chunks_to_save:
-        dirty_coords[chunk.chunk_position] = chunk
-    
-    # loop over dirty chunks
+    # build index table
     backing_file.seek(0)
-    while backing_file.get_position() < backing_file.get_length() and chunks_to_save.size() > 0:
+    while backing_file.get_position() < backing_file.get_length():
         var x = backing_file.get_64()
         var y = backing_file.get_64()
         var z = backing_file.get_64()
         var _unused = backing_file.get_64()
         var c = Vector3(x, y, z)
-        if c in dirty_coords:
-            var chunk = dirty_coords[c]
-            backing_file.store_buffer(chunk.voxels)
-            dirty_coords.erase(c)
-            chunks_to_save.erase(chunk)
-        else:
-            backing_file.seek(backing_file.get_position() + chunk_bytes)
+        f_index_table[c] = backing_file.get_position() - f_chunk_header_bytes
+        backing_file.seek(backing_file.get_position() + f_chunk_bytes)
+    
+    f_access_mutex.unlock()
+
+func trigger_save(chunks_to_save : Array):
+    if chunks_to_save.size() == 0:
+        return
+    
+    f_access_mutex.lock()
     
     for chunk in chunks_to_save:
         var c = chunk.chunk_position
+        if c in f_index_table:
+            backing_file.seek(f_index_table[c] + f_chunk_header_bytes)
+            backing_file.store_buffer(chunk.voxels)
+            chunks_to_save.erase(chunk)
+    
+    backing_file.seek(backing_file.get_length())
+    for chunk in chunks_to_save:
+        var c = chunk.chunk_position
+        f_index_table[c] = backing_file.get_position()
         backing_file.store_64(c.x)
         backing_file.store_64(c.y)
         backing_file.store_64(c.z)
@@ -57,26 +67,17 @@ func trigger_save(chunks_to_save : Array):
 
 func load_chunk_if_in_file(coord : Vector3):
     f_access_mutex.lock()
-    var chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
     
-    # loop over dirty chunks
-    backing_file.seek(0)
-    var found_chunk = null
-    while backing_file.get_position() < backing_file.get_length():
-        var x = backing_file.get_64()
-        var y = backing_file.get_64()
-        var z = backing_file.get_64()
-        var _unused = backing_file.get_64()
-        var c = Vector3(x, y, z)
-        var data = backing_file.get_buffer(chunk_bytes)
-        if c == coord:
-            found_chunk = Voxels.new()
-            found_chunk.load_generation(coord, data)
-            break
-    
-    f_access_mutex.unlock()
-    
-    return found_chunk
+    if coord in f_index_table:
+        backing_file.seek(f_index_table[coord] + f_chunk_header_bytes)
+        var data = backing_file.get_buffer(f_chunk_bytes)
+        f_access_mutex.unlock()
+        var chunk = Voxels.new()
+        chunk.load_generation(coord, data)
+        return chunk
+    else:
+        f_access_mutex.unlock()
+        return null
 
 func load_chunk(coord : Vector3):
     var vox = load_chunk_if_in_file(coord)
