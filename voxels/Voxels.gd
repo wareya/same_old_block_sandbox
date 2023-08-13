@@ -74,12 +74,12 @@ static func height_at_global(noiser : Noise, x : float, z : float):
     
     return [pure_height, height, rock_offset]
 
-func get_tree_coords(noiser : Noise):
+static func get_tree_coords(_chunk_position : Vector3, noiser : Noise):
     var rng = RandomNumberGenerator.new()
-    rng.seed = hash(chunk_position * Vector3(1.0, 0.0, 1.0))
+    rng.seed = hash(_chunk_position * Vector3(1.0, 0.0, 1.0))
     var tree_count = rng.randi_range(3, 6)
     
-    var offset = -Vector3.ONE*chunk_size/2 + chunk_position
+    var offset = -Vector3.ONE*chunk_size/2 + _chunk_position
     var offset_2d = Vector2(offset.x, offset.z)
     
     var trees = []
@@ -95,26 +95,19 @@ func get_tree_coords(noiser : Noise):
         var is_rock = rock_part > 1.0
         
         if height >= 0 and !is_rock:
-            var c_3d = Vector3(x, height+1 - chunk_position.y + chunk_size/2, z)
+            var c_3d = Vector3(x, height+1 - _chunk_position.y + chunk_size/2, z)
             var tall = rng.randi_range(4, 6)
             var grunge = rng.randi()
             trees.push_back([c_3d, tall, grunge])
     
     return trees
 
-static func _generate_internal(_voxels : PackedByteArray, _side_cache : PackedByteArray):
-    pass
-
-func generate():
-    var start = Time.get_ticks_usec()
-    voxels.resize(chunk_size*chunk_size*chunk_size)
-    side_cache.resize(chunk_size*chunk_size*chunk_size)
-    bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
-    
-    var offset = -Vector3.ONE*chunk_size/2 + chunk_position
-    var offset_2d = Vector2(offset.x, offset.z)
-    
-    var noiser = world.base_noise
+static func _generate_internal(
+    noiser : Noise,
+    _voxels : PackedByteArray,
+    _chunk_position : Vector3,
+    offset : Vector3,
+    offset_2d : Vector2):
     
     for z in chunk_size:
         for x in chunk_size:
@@ -153,12 +146,9 @@ func generate():
                 
                 var i = h_i + y*chunk_size*chunk_size
                 
-                voxels[i] = vox
-                side_cache[i] = 0xFF
-                for j in 6:
-                    bitmask_cache[i*6 + j] = 0x0
+                _voxels[i] = vox
     
-    var tree_coords = get_tree_coords(noiser)
+    var tree_coords = get_tree_coords(_chunk_position, noiser)
     for tree in tree_coords:
         var coord = tree[0]
         var tall = tree[1]
@@ -184,13 +174,29 @@ func generate():
                     var c2 = coord + Vector3(x, y, z)
                     if bounds.has_point(c2):
                         var index = Voxels.coord_to_index(c2)
-                        voxels[index] = 5
+                        _voxels[index] = 5
         
         for y in tall:
             var c2 = coord + Vector3(0, y, 0)
             if bounds.has_point(c2):
                 var index = Voxels.coord_to_index(c2)
-                voxels[index] = 4
+                _voxels[index] = 4
+
+var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
+
+func generate():
+    var start = Time.get_ticks_usec()
+    side_cache.resize(chunk_size*chunk_size*chunk_size)
+    side_cache.fill(0xFF)
+    bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
+    bitmask_cache.fill(0x0)
+    
+    var offset = -Vector3.ONE*chunk_size/2 + chunk_position
+    var offset_2d = Vector2(offset.x, offset.z)
+    var noiser = world.base_noise
+    
+    #Voxels._generate_internal(noiser, voxels, chunk_position, offset, offset_2d)
+    voxels = VoxelGenerator._Generate(noiser, chunk_position, offset, offset_2d)
     
     print("gen time: ", (Time.get_ticks_usec() - start)/1000.0)
 
@@ -198,7 +204,7 @@ func generate():
 var meshinst_child = MeshInstance3D.new()
 var body_child = StaticBody3D.new()
 func _ready() -> void:
-    print("voxels ready!")
+    #print("voxels ready!")
     
     add_child(meshinst_child)
     add_child(body_child)
@@ -243,7 +249,6 @@ var remesh_output = []
 var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
 func remesh_get_arrays(target_type : int):
-    print("target type: ", target_type)
     var voxel_is_target = func(vox : int, target_type : int) -> bool:
         if vox == 0:
             return false
@@ -272,7 +277,7 @@ func remesh_get_arrays(target_type : int):
     
     var offs = Vector3.ONE*chunk_size/2.0
     
-    print("starting loop in remesh()")
+    #print("starting loop in remesh()")
     for y in chunk_size:
         var prev_x = []
         var prev_x_need_clear = []
@@ -431,9 +436,9 @@ func remesh_get_arrays(target_type : int):
                     prev_x[x] = [vox, cached, prev_i_4, prev_i_5, prev_bitmasks.duplicate()]
                     prev_x_need_clear[x] = true
     
-    print((Time.get_ticks_usec() - start)/1000.0, "msec to build buffers")
-    print("verts size: ", verts.size())
-    print("----")
+    #print((Time.get_ticks_usec() - start)/1000.0, "msec to build buffers")
+    #print("verts size: ", verts.size())
+    #print("----")
     
     start = Time.get_ticks_usec()
     var arrays = []
@@ -447,7 +452,7 @@ func remesh_get_arrays(target_type : int):
 var neighbor_chunks = {}
 var remeshed = false
 func remesh():
-    print("in remesh()")
+    #print("in remesh()")
     neighbor_chunks = {}
     world.chunk_table_mutex.lock()
     for y in range(-1, 2):
@@ -468,15 +473,19 @@ func remesh():
     dirty_commands = []
     dirty_command_mutex.unlock()
     
+    var start = Time.get_ticks_usec()
+    
     var solid_arrays = remesh_get_arrays(0)
     var atest_arrays = remesh_get_arrays(1)
     var trans_arrays = remesh_get_arrays(2)
     
+    print("remesh time: ", (Time.get_ticks_usec() - start)/1000.0)
+    
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()
     remesh_output = [solid_arrays, atest_arrays, trans_arrays]
-    print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
-    print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
+    #print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
+    #print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
     remesh_output_mutex.unlock()
 
 var block_command_mutex = Mutex.new()
@@ -562,14 +571,13 @@ var alive = false
 func accept_remesh():
     remesh_output_mutex.lock()
     if remesh_output != []:
-        print("got remesh")
         
         var mesh_collision = []
         
         var mesh_child = ArrayMesh.new()
         
         var add_arrays = func(arrays, mat, solid):
-            if arrays[0].size() > 0:
+            if arrays.size() > 0 and arrays[0].size() > 0:
                 mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
                 var id = mesh_child.get_surface_count() - 1
                 mesh_child.surface_set_material(id, mat)
@@ -577,9 +585,9 @@ func accept_remesh():
                     mesh_collision.push_back(mesh_child.create_trimesh_shape())
             return mesh_child
         
-        print("array sizes:")
-        for array in remesh_output:
-            print(array[0].size())
+        #print("array sizes:")
+        #for array in remesh_output:
+        #    print(array[0].size())
         
         add_arrays.call(remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
         add_arrays.call(remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
