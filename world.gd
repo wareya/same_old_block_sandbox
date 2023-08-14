@@ -6,7 +6,7 @@ var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
 
-var saving_disabled = true
+var saving_disabled = false
 var backing_file : FileAccess = null
 func _init():
     open_save()
@@ -278,7 +278,10 @@ func dynamically_unload_world(player_chunk):
         _find_chunks_prev_player_chunk_2 = player_chunk
         
         _found_unloadable_chunks = []
-        for coord in chunks_loaded:
+        
+        # FIXME move the loaded, meshed neighbors of unloaded chunks into "unmeshed" state
+        
+        for coord in all_chunks:
             var c_local = coord - player_chunk
             if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size + unload_threshold:
                 _found_unloadable_chunks.push_back(coord)
@@ -288,9 +291,10 @@ func dynamically_unload_world(player_chunk):
         var unload_list = []
         chunk_table_mutex.lock()
         for coord in _found_unloadable_chunks:
-            var chunk = chunks_loaded[coord]
-            chunks_loaded.erase(coord)
+            var chunk = all_chunks[coord]
             all_chunks.erase(coord)
+            if coord in chunks_loaded:
+                chunks_loaded.erase(coord)
             #chunks_unloaded[coord] = chunk
             unload_list.push_back(chunk)
         chunk_table_mutex.unlock()
@@ -299,11 +303,9 @@ func dynamically_unload_world(player_chunk):
 
 func do_unload(chunk_list : Array):
     for chunk in chunk_list:
-        if chunk.is_inside_tree() and chunk.get_parent() == self:
-            remove_child(chunk)
-            chunk.queue_free()
-            #if is_instance_valid(chunk):
-            #    print("!!!! uh oh!")
+        if chunk.is_inside_tree():
+            chunk.get_parent().remove_child(chunk)
+        chunk.free()
 
 var _find_chunks_prev_player_chunk = Vector3()
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
@@ -316,6 +318,7 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
         #print(facing_dir)
         
         _find_chunks_unloaded_coords = []
+        chunk_table_mutex.lock()
         for y in range(-range_v, range_v+1):
             for z in range(-range_h, range_h+1):
                 for x in range(-range_h, range_h+1):
@@ -340,6 +343,8 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
                     
                     _find_chunks_unloaded_coords.push_back([-score, c])
     
+        chunk_table_mutex.unlock()
+        
         world_work_num_unloaded = _find_chunks_unloaded_coords.size()
         _find_chunks_unloaded_coords.sort()
     
