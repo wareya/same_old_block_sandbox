@@ -19,21 +19,40 @@ public partial class VoxelGenerator : RefCounted
         float pure_height = noiser.GetNoise2D(x, z);
         float height = pure_height;
         
+        float steepness_preoffset_freq = 0.5f;
+        
+        float steepness_preoffset = noiser.GetNoise3D(x*steepness_preoffset_freq, -z*steepness_preoffset_freq - 1130.0f, -1451.0f) * 0.75f;
+        
         float steepness_freq = 0.5f;
+        float steepness_min = 0.4f;
+        float steepness_max = 32.0f;
+        float steepness_exp = 1.0f;
         
         float steepness = noiser.GetNoise3D(x*steepness_freq, -z*steepness_freq + 100.0f, 50.0f)*0.5f + 0.5f;
-        steepness = Mathf.Lerp(0.4f, 16.0f, steepness*steepness*steepness*steepness);
-        height = _adjust_val(height, steepness);
+        steepness = Mathf.Lerp(steepness_min, steepness_max, Mathf.Pow(steepness, steepness_exp));
+        
+        height = _adjust_val(height + steepness_preoffset, steepness) - steepness_preoffset;
+        
+        // extra grit
         height += noiser.GetNoise2D(x*0.2f + 512.0f, z*0.2f + 11.0f) * 1.0f;
         
         float height_scale_freq = 0.5f;
+        float height_scale_min = 3.0f;
+        float height_scale_max = 64.0f;
+        float height_scale_exp = 5.0f;
         
         float height_scale = noiser.GetNoise2D(x*height_scale_freq, z*height_scale_freq + 154.0f)*0.5f + 0.5f;
-        height = height * Mathf.Lerp(1.0f, 12.0f, height_scale);
+        height = height * Mathf.Lerp(height_scale_min, height_scale_max, Mathf.Pow(height_scale, height_scale_exp));
         
-        height += noiser.GetNoise2D(x*0.4f + 51.0f, z*0.4f + 1301.0f) * 5.0f;
-                
-        float rock_offset = noiser.GetNoise2D(z*2.6f + 151.0f, x*2.6f + 11.0f)*5.0f;
+        float height_noise_freq = 0.4f;
+        float height_noise_scale = 5.0f;
+        
+        height += noiser.GetNoise2D(x*height_noise_freq + 51.0f, z*height_noise_freq + 1301.0f) * height_noise_scale;
+        
+        float rock_freq = 2.6f;
+        float rock_scale = 5.0f;
+        
+        float rock_offset = noiser.GetNoise2D(z*rock_freq + 151.0f, x*rock_freq + 11.0f)*rock_scale;
         
         pure_height = Mathf.Round(pure_height);
         height = Mathf.Round(height);

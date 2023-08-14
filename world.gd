@@ -6,11 +6,11 @@ var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
 
-var saving_disabled = false
+var save_disabled = true
 var backing_file : FileAccess = null
+
 func _init():
     open_save()
-    print(backing_file)
 
 var f_access_mutex = Mutex.new()
 var f_index_table = {}
@@ -19,7 +19,7 @@ static var f_chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
 static var f_chunk_header_bytes = 8*4 # three signed i64s for position plus a padding/metadata i64
 
 func open_save():
-    if saving_disabled:
+    if save_disabled:
         return
     f_access_mutex.lock()
     
@@ -42,7 +42,7 @@ func open_save():
     f_access_mutex.unlock()
 
 func trigger_save(chunks_to_save : Array):
-    if saving_disabled:
+    if save_disabled:
         return
     if chunks_to_save.size() == 0:
         return
@@ -71,7 +71,7 @@ func trigger_save(chunks_to_save : Array):
     f_access_mutex.unlock()
 
 func load_chunk_if_in_file(coord : Vector3):
-    if saving_disabled:
+    if save_disabled:
         return null
     f_access_mutex.lock()
     
@@ -268,7 +268,8 @@ func dynamic_world_loop():
 # 1024 = 32 chunk distance
 
 var range_h = 512/Voxels.chunk_size/2
-var range_v = 64/Voxels.chunk_size/2
+#var range_v = 64/Voxels.chunk_size/2
+var range_v = 128/Voxels.chunk_size/2
 
 var _found_unloadable_chunks = []
 var _find_chunks_prev_player_chunk_2 = Vector3()
@@ -285,7 +286,7 @@ func dynamically_unload_world(player_chunk):
             var c_local = coord - player_chunk
             if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size + unload_threshold:
                 _found_unloadable_chunks.push_back(coord)
-            elif abs(c_local.y) > range_v*Voxels.chunk_size + unload_threshold:
+            elif abs(c_local.y) > max(range_v, range_h)*Voxels.chunk_size + unload_threshold:
                 _found_unloadable_chunks.push_back(coord)
         
         var unload_list = []
@@ -413,7 +414,8 @@ func add_and_load_all(chunks):
     trigger_save(just_chunks)
     #print("add time: ", (Time.get_ticks_usec() - _start)/1000.0)
 
-func initial_add_vox(vox : Node, coord : Vector3):
+func initial_add_vox(vox : Node3D, coord : Vector3):
     add_child(vox)
     vox.global_position = coord
+    vox.force_update_transform()
     vox.accept_remesh()
