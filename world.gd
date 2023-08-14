@@ -124,6 +124,10 @@ static func get_chunk_coord(coord):
 var dirty_chunk_mutex = Mutex.new()
 var dirty_chunks = []
 
+func dirtify_world():
+    var env = get_world_3d().environment
+    #env.sdfgi_enabled = !env.sdfgi_enabled
+
 func set_block(coord : Vector3, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
     if chunk_coord in chunks_loaded:
@@ -158,11 +162,6 @@ func set_block(coord : Vector3, id : int):
                 neighbor_chunk.set_block(coord, -1)
                 dirty_chunks.push_back(neighbor_chunk)
             dirty_chunk_mutex.unlock()
-            
-            
-        print(c)
-    else:
-        print("no chunk")
 
 @export var base_noise : Noise = null
 
@@ -217,6 +216,8 @@ func remesh_work_loop():
             trigger_save(dc)
             
             trigger_remesh_acceptance.bind(dirty_list_copy).call_deferred()
+        
+            dirtify_world.call_deferred()
         
         semaphore.post.call_deferred()
         semaphore.wait()
@@ -286,8 +287,8 @@ func dynamically_unload_world(player_chunk):
             var c_local = coord - player_chunk
             if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size + unload_threshold:
                 _found_unloadable_chunks.push_back(coord)
-            elif abs(c_local.y) > max(range_v, range_h)*Voxels.chunk_size + unload_threshold:
-                _found_unloadable_chunks.push_back(coord)
+            #elif abs(c_local.y) > max(range_v, range_h)*Voxels.chunk_size + unload_threshold:
+            #    _found_unloadable_chunks.push_back(coord)
         
         var unload_list = []
         chunk_table_mutex.lock()
@@ -313,10 +314,9 @@ var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
 func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
     var dot = facing_dir.dot(_find_chunks_prev_facing_dir)
-    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.9:
+    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.95:
         _find_chunks_prev_player_chunk = player_chunk
         _find_chunks_prev_facing_dir = facing_dir
-        #print(facing_dir)
         
         _find_chunks_unloaded_coords = []
         chunk_table_mutex.lock()
@@ -327,22 +327,23 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
                         continue
                     var c = Vector3(x, y, z) * Voxels.chunk_size
                     
-                    var c_global = c + player_chunk
+                    var c_global = c + player_chunk*Vector3(1, 0, 1)
                     
-                    # FIXME: wait... I need to use a mutex here...
                     if c_global in chunks_loaded:
                         continue
                     
+                    var h_dist = (c*Vector3(1, 0, 1)).length()
                     var score = c.length()
-                    if score > 30.0:
-                        # cos(60deg) = 0.5; roughly 120 horiz fov
+                    if score > 30.0 and h_dist > 30.0:
                         var cn = c/score
-                        if cn.dot(facing_dir) < 0.2:
+                        if cn.dot(facing_dir) < -0.5:
                             score += 200.0
+                        if cn.dot(facing_dir) < 0.0:
+                            score += 100.0
                         elif cn.dot(facing_dir) < 0.5:
                             score += 20.0
                     
-                    _find_chunks_unloaded_coords.push_back([-score, c])
+                    _find_chunks_unloaded_coords.push_back([-score, c_global])
     
         chunk_table_mutex.unlock()
         
@@ -366,7 +367,7 @@ func get_player_facing_dir():
 func dynamically_load_world(player_chunk, facing_dir):
     var unloaded_coords = find_chunk_load_queue(player_chunk, facing_dir)
     if unloaded_coords.size() > 0:
-        var c_coord = unloaded_coords.pop_back()[1] + player_chunk
+        var c_coord = unloaded_coords.pop_back()[1]
         world_work_num_unloaded = unloaded_coords.size()
         
         if c_coord in chunks_unloaded:
@@ -403,6 +404,8 @@ func dynamically_load_world(player_chunk, facing_dir):
     return null
 
 func add_and_load_all(chunks):
+    if chunks.size() == 0:
+        return
     var _start = Time.get_ticks_usec()
     var just_chunks = []
     for chunk in chunks:
@@ -412,6 +415,7 @@ func add_and_load_all(chunks):
             add_child(chunk[0])
         just_chunks.push_back(chunk[0])
     trigger_save(just_chunks)
+    dirtify_world()
     #print("add time: ", (Time.get_ticks_usec() - _start)/1000.0)
 
 func initial_add_vox(vox : Node3D, coord : Vector3):

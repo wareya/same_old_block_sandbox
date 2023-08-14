@@ -84,3 +84,11 @@ limits/debugger/max_queued_messages=20480
 global_illumination/gi/use_half_resolution=true
 global_illumination/sdfgi/probe_ray_count=0
 global_illumination/sdfgi/frames_to_converge=0
+anti_aliasing/quality/use_taa=true
+
+[shader_globals]
+
+distorted_normals={
+"type": "sampler2D",
+"value": "res://disorted_normals.tres"
+}

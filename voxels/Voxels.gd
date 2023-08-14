@@ -244,33 +244,33 @@ func accept_remesh():
         var mesh_collision = []
         
         var mesh_child = ArrayMesh.new()
+        var mesh2_child = ArrayMesh.new()
         
-        var mesh_added = [false]
         var collision_added = [false]
-        var add_arrays = func(arrays, mat, solid):
+        var add_arrays = func(mesh, arrays, mat, solid):
             if arrays and arrays.size() > 0 and arrays[0].size() > 0:
-                mesh_added[0] = true
                 var flags = (Mesh.ARRAY_CUSTOM_RGBA8_UNORM << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
-                mesh_child.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
-                var id = mesh_child.get_surface_count() - 1
-                mesh_child.surface_set_material(id, mat)
+                mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
+                var id = mesh.get_surface_count() - 1
+                mesh.surface_set_material(id, mat)
                 if solid:
                     collision_added[0] = true
-                    mesh_collision.push_back(mesh_child.create_trimesh_shape())
-            return mesh_child
+                    mesh_collision.push_back(mesh.create_trimesh_shape())
+            return mesh
         
         #print("array sizes:")
         #for array in remesh_output:
         #    print(array[0].size())
         
-        add_arrays.call(remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
-        add_arrays.call(remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
-        add_arrays.call(remesh_output[2], preload("res://voxels/VoxMatTrans.tres"), false)
+        add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
+        add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
+        add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTrans.tres"), false)
         remesh_output = []
         
         remesh_output_mutex.unlock()
         
-        if mesh_added[0]:
+        if mesh_child.get_surface_count() > 0:
+            meshinst_child.set_layer_mask_value(20, false)
             meshinst_child.mesh = mesh_child
             if !meshinst_childed:
                 add_child(meshinst_child)

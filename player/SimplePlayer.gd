@@ -144,7 +144,9 @@ func move_and_climb_stairs(delta : float, allow_stair_snapping : bool):
     floor_collision = null
     
     # do move_and_slide and check if we hit a wall
+    wall_min_slide_angle = 0.0
     move_and_slide()
+    
     var slide_velocity = velocity
     var slide_position = global_position
     var hit_wall = false
@@ -273,7 +275,6 @@ func probe_probable_step_height():
         return clamp(highest/2.0 + lowest/2.0, 0.0, step_height)
 
 func _process(delta: float) -> void:
-    
     started_process_on_floor = is_on_floor()
     # for controller camera control
     #handle_stick_input(delta)
@@ -323,7 +324,7 @@ func _process(delta: float) -> void:
     var is_solid = func(id : int): return id != 0 and id != 6
     
     if chunk:
-        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.0, 0))):
+        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.01, 0))):
             global_position.y += 0.5
         if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.5, 0))):
             global_position.y += 0.5
@@ -334,6 +335,8 @@ func _process(delta: float) -> void:
     
     handle_camera_adjustment(start_pos, delta)
     #add_collision_debug_visualizer(delta)
+    
+    $ReflectionProbe.update_mode = ReflectionProbe.UPDATE_ALWAYS if velocity.length() > 10.0 else ReflectionProbe.UPDATE_ONCE
     
     cached_position = global_position
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
