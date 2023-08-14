@@ -6,6 +6,7 @@ var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
 
+var saving_disabled = true
 var backing_file : FileAccess = null
 func _init():
     open_save()
@@ -18,6 +19,8 @@ static var f_chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
 static var f_chunk_header_bytes = 8*4 # three signed i64s for position plus a padding/metadata i64
 
 func open_save():
+    if saving_disabled:
+        return
     f_access_mutex.lock()
     
     var fname = "user://classicbox_world0.bin"
@@ -39,6 +42,8 @@ func open_save():
     f_access_mutex.unlock()
 
 func trigger_save(chunks_to_save : Array):
+    if saving_disabled:
+        return
     if chunks_to_save.size() == 0:
         return
     
@@ -66,6 +71,8 @@ func trigger_save(chunks_to_save : Array):
     f_access_mutex.unlock()
 
 func load_chunk_if_in_file(coord : Vector3):
+    if saving_disabled:
+        return null
     f_access_mutex.lock()
     
     if coord in f_index_table:
@@ -283,7 +290,8 @@ func dynamically_unload_world(player_chunk):
         for coord in _found_unloadable_chunks:
             var chunk = chunks_loaded[coord]
             chunks_loaded.erase(coord)
-            chunks_unloaded[coord] = chunk
+            all_chunks.erase(coord)
+            #chunks_unloaded[coord] = chunk
             unload_list.push_back(chunk)
         chunk_table_mutex.unlock()
         
@@ -293,16 +301,19 @@ func do_unload(chunk_list : Array):
     for chunk in chunk_list:
         if chunk.is_inside_tree() and chunk.get_parent() == self:
             remove_child(chunk)
+            chunk.queue_free()
+            #if is_instance_valid(chunk):
+            #    print("!!!! uh oh!")
 
 var _find_chunks_prev_player_chunk = Vector3()
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
 func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
     var dot = facing_dir.dot(_find_chunks_prev_facing_dir)
-    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.8:
+    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.9:
         _find_chunks_prev_player_chunk = player_chunk
         _find_chunks_prev_facing_dir = facing_dir
-        print(facing_dir)
+        #print(facing_dir)
         
         _find_chunks_unloaded_coords = []
         for y in range(-range_v, range_v+1):

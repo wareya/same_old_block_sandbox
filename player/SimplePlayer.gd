@@ -149,14 +149,16 @@ func move_and_climb_stairs(delta : float, allow_stair_snapping : bool):
     var slide_position = global_position
     var hit_wall = false
     var floor_normal = cos(floor_max_angle)
-    var max_slide = get_slide_collision_count()-1
+    var max_slide = get_slide_collision_count()
     var accumulated_position = start_position
-    for slide in max_slide+1:
+    var wall_position = start_position
+    for slide in max_slide:
         var collision = get_slide_collision(slide)
         var y = collision.get_normal().y
+        accumulated_position += collision.get_travel()
         if y < floor_normal and y > -floor_normal:
             hit_wall = true
-        accumulated_position += collision.get_travel()
+            wall_position = accumulated_position
     slide_snap_offset = accumulated_position - global_position
     
     var really_do_stairs = do_stairs
@@ -166,6 +168,8 @@ func move_and_climb_stairs(delta : float, allow_stair_snapping : bool):
         really_do_stairs = false
     # if we hit a wall, check for simple stairs; three steps
     if hit_wall and really_do_stairs and (start_velocity.x != 0.0 or start_velocity.z != 0.0):
+        var original_wall_dist = ((wall_position - accumulated_position)*Vector3(1,0,1)).length_squared()
+        
         global_position = start_position
         velocity = start_velocity
         # step 1: upwards trace
@@ -181,9 +185,12 @@ func move_and_climb_stairs(delta : float, allow_stair_snapping : bool):
         wall_remainder = info[1]
         wall_collision = info[2]
         
+        var wall_test_dist = ((wall_collision.get_travel() if wall_collision else wall_test_travel)*Vector3(1,0,1)).length_squared()
+        var went_further = wall_test_dist - 0.00001 > original_wall_dist
+        
         # step 3: downwards trace
         floor_collision = move_and_collide(Vector3.DOWN * (ceiling_travel_distance + (step_height if started_process_on_floor else 0.0)))
-        if floor_collision:
+        if went_further and floor_collision:
             if floor_collision.get_normal(0).y > floor_normal:
                 found_stairs = true
             # NOTE: NOT NECESSARY

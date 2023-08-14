@@ -70,6 +70,15 @@ var body_childed : bool = false
 func _ready() -> void:
     pass
 
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_PREDELETE:
+        if meshinst_child and is_instance_valid(meshinst_child):
+            meshinst_child.free()
+            meshinst_child = null
+        if body_child and is_instance_valid(body_child):
+            body_child.free()
+            body_child = null
+
 var chunk_position = Vector3()
 func do_generation(pos : Vector3):
     chunk_position = pos
@@ -111,13 +120,12 @@ var remesh_output = []
 
 var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
-var neighbor_chunks = {}
 var remeshed = false
 func remesh():
     var _start = Time.get_ticks_usec()
     
     #print("in remesh()")
-    neighbor_chunks = {}
+    var neighbor_chunks = {}
     world.chunk_table_mutex.lock()
     for y in range(-1, 2):
         for z in range(-1, 2):
