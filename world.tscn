@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=29 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Script" path="res://player/SimplePlayer.gd" id="1_xe5oo"]
@@ -61,6 +61,48 @@ glow_mix = 0.0
 glow_blend_mode = 1
 glow_hdr_threshold = 0.15
 glow_hdr_scale = 0.0
+
+[sub_resource type="Shader" id="Shader_rcwn0"]
+code = "// NOTE: Shader automatically converted from Godot Engine 4.1.1.stable.mono's CanvasItemMaterial.
+
+shader_type canvas_item;
+render_mode blend_mix;
+
+global uniform sampler2D distorted_normals : hint_normal,filter_linear_mipmap_anisotropic,repeat_enable;
+uniform sampler2D screen_texture : hint_screen_texture,filter_linear_mipmap_anisotropic;
+
+vec4 blend(vec4 bottom, vec4 top, float t)
+{
+    top.a *= t;
+    
+    bottom.rgb *= bottom.a;
+    top.rgb *= top.a;
+    
+    bottom = mix(bottom, top, top.a);
+    if (bottom.a > 0.0)
+        bottom.rgb /= bottom.a;
+    
+    return bottom;
+}
+
+uniform vec4 water_color : source_color;
+
+void fragment()
+{
+    vec2 ar = vec2(SCREEN_PIXEL_SIZE.y/SCREEN_PIXEL_SIZE.x, 1.0);
+    vec2 uv = (SCREEN_UV-vec2(0.5))*ar;
+    vec2 n = texture(distorted_normals, uv*0.1 + vec2(0.0, TIME*0.01)).xy*2.0 - 1.0;
+    uv += n*0.02;
+    
+    vec3 c = texture(screen_texture, uv/ar + vec2(0.5)).rgb;
+    c = blend(vec4(c, 1.0), water_color, 1.0).rgb;
+    
+    COLOR = vec4(c, 1.0);
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_e2ytg"]
+shader = SubResource("Shader_rcwn0")
+shader_parameter/water_color = Color(0.203922, 0.384314, 0.772549, 0.501961)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)
@@ -139,6 +181,15 @@ collision_layer = 2
 script = ExtResource("1_xe5oo")
 step_height = 0.6
 
+[node name="WaterOverlay" type="ColorRect" parent="Player"]
+material = SubResource("ShaderMaterial_e2ytg")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.137255, 0.356863, 0.764706, 0.266667)
+
 [node name="OmniLight3D" type="OmniLight3D" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.638, 0)
 light_energy = 0.1
@@ -192,6 +243,7 @@ shape = SubResource("BoxShape3D_1dqmv")
 
 [node name="ReflectionProbe" type="ReflectionProbe" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
+max_distance = 64.0
 size = Vector3(6400, 24, 6400)
 box_projection = true
 enable_shadows = true

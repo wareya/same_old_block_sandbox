@@ -277,6 +277,7 @@ func accept_remesh():
             meshinst_child.mesh = mesh_child
             if !meshinst_childed:
                 add_child(meshinst_child)
+                meshinst_child.force_update_transform()
                 meshinst_childed = true
         else:
             meshinst_child.mesh = null
@@ -294,11 +295,13 @@ func accept_remesh():
                 body_child.shape_owner_add_shape(0, mesh)
             if !body_childed:
                 add_child(body_child)
+                body_child.force_update_transform()
                 body_childed = true
         else:
             if body_childed:
                 remove_child(body_child)
                 body_childed = false
+        
         
         #print("accept time: ", (Time.get_ticks_usec() - _start)/1000.0)
         

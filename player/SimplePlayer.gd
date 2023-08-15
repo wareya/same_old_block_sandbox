@@ -333,6 +333,8 @@ func _process(delta: float) -> void:
         if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.5, 0))):
             global_position.y += 0.5
     
+    $WaterOverlay.visible = head_in_water
+    
     handle_camera_adjustment(start_pos, delta)
     #add_collision_debug_visualizer(delta)
     
@@ -377,6 +379,7 @@ func check_chunk(start_pos, start_vel):
         var block_in = chunk.get_block(global_position + Vector3.UP*0.5)
         var head_block_in = chunk.get_block(global_position + Vector3.UP*1.5)
         in_water = block_in == 6 or head_block_in == 6
+        head_in_water = chunk.get_block($CameraHolder.global_position + Vector3.UP/8.0)
         return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
@@ -395,6 +398,7 @@ func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
     
 
 var in_water : bool = false
+var head_in_water : bool = false
 
 var cached_position = Vector3()
 var cached_facing_dir = Vector3.FORWARD
