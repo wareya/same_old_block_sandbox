@@ -336,7 +336,7 @@ func _process(delta: float) -> void:
     handle_camera_adjustment(start_pos, delta)
     #add_collision_debug_visualizer(delta)
     
-    $ReflectionProbe.update_mode = ReflectionProbe.UPDATE_ALWAYS if velocity.length() > 10.0 else ReflectionProbe.UPDATE_ONCE
+    #$ReflectionProbe.update_mode = ReflectionProbe.UPDATE_ALWAYS if velocity.length() > 10.0 else ReflectionProbe.UPDATE_ONCE
     
     cached_position = global_position
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
@@ -374,8 +374,9 @@ func check_chunk(start_pos, start_vel):
         return null
     else:
         $DebugLabel.text = str(chunk_coord)
-        var block_in = chunk.get_block(global_position)
-        in_water = block_in == 6
+        var block_in = chunk.get_block(global_position + Vector3.UP*0.5)
+        var head_block_in = chunk.get_block(global_position + Vector3.UP*1.5)
+        in_water = block_in == 6 or head_block_in == 6
         return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):

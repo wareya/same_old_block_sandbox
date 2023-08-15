@@ -81,9 +81,8 @@ limits/debugger/max_queued_messages=20480
 
 [rendering]
 
-global_illumination/gi/use_half_resolution=true
-global_illumination/sdfgi/probe_ray_count=0
-global_illumination/sdfgi/frames_to_converge=0
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+anti_aliasing/screen_space_roughness_limiter/enabled=false
 anti_aliasing/quality/use_taa=true
 
 [shader_globals]

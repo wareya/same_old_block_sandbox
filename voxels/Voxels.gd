@@ -149,6 +149,7 @@ func remesh():
     var solid_arrays = VoxelMesher.remesh_get_arrays(0, chunk_position, neighbor_chunks)
     var atest_arrays = VoxelMesher.remesh_get_arrays(1, chunk_position, neighbor_chunks)
     var trans_arrays = VoxelMesher.remesh_get_arrays(2, chunk_position, neighbor_chunks)
+    side_cache = VoxelMesher.side_cache
     
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()
@@ -228,11 +229,13 @@ var remesh_thread = Thread.new()
 var remesh_work_mutex = Mutex.new()
 func process_and_remesh():
     remesh_work_mutex.lock()
+    
     block_command_mutex.lock()
     for data in block_commands:
         dirty_block(data[0])
     block_commands = []
     block_command_mutex.unlock()
+    
     remesh()
     remesh_work_mutex.unlock()
 

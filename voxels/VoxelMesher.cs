@@ -252,6 +252,8 @@ public partial class VoxelMesher : RefCounted
                         var prev_i_5 = prev_x[x].Item4;
                         foreach (var d in Enumerable.Range(0, 6))
                         {
+                            var top_open = (cached&1) != 0;
+                            var displace_top = target_type == 2 && top_open;
                             var prev_bitmask = prev_bitmasks[d];
                             var prev_x_bitmask = prev_x[x].Item5[d];
                             var bitmask = bitmask_cache[vox_index*6 + d];
@@ -318,6 +320,12 @@ public partial class VoxelMesher : RefCounted
                                     for (int i = 0; i < 4; i++)
                                     {
                                         var v = vert_table[d*4 + i];
+                                        if (displace_top)
+                                        {
+                                            if (d == 0 || (d >= 2 && i < 2))
+                                                v.Y *= 3.0f/4.0f;
+                                        }
+                                        
                                         verts.Add(coord + v);
                                         
                                         var index_a = (byte)(array_index >> 8);

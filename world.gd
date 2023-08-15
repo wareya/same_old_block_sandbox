@@ -6,10 +6,13 @@ var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
 
-var save_disabled = true
+var save_disabled = false
 var backing_file : FileAccess = null
 
 func _init():
+    randomize()
+    world_seed = randi()
+    print(world_seed)
     open_save()
 
 var f_access_mutex = Mutex.new()
@@ -17,6 +20,8 @@ var f_index_table = {}
 
 static var f_chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
 static var f_chunk_header_bytes = 8*4 # three signed i64s for position plus a padding/metadata i64
+
+var world_seed = 16
 
 func open_save():
     if save_disabled:
@@ -28,8 +33,13 @@ func open_save():
     if !backing_file:
         backing_file = FileAccess.open(fname, FileAccess.WRITE)
     
+    
     # build index table
     backing_file.seek(0)
+    
+    if backing_file.get_position() < backing_file.get_length():
+        world_seed = backing_file.get_64()
+    
     while backing_file.get_position() < backing_file.get_length():
         var x = backing_file.get_64()
         var y = backing_file.get_64()
@@ -48,6 +58,9 @@ func trigger_save(chunks_to_save : Array):
         return
     
     f_access_mutex.lock()
+    
+    backing_file.seek(0)
+    backing_file.store_64(world_seed)
     
     for chunk in chunks_to_save:
         var c = chunk.chunk_position
@@ -97,6 +110,10 @@ var chunks_meshed = 0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
+    base_noise.seed = world_seed
+    print(world_seed)
+    print(base_noise.seed)
+    
     var _range = 1
     for y in range(-1, 2):
         for z in range(-_range, _range+1):
@@ -108,11 +125,12 @@ func _ready() -> void:
     
     var c = Vector3()
     var vox = all_chunks[c]
+    add_child(vox)
+    vox.global_position = c
+    
     vox.process_and_remesh()
     vox.accept_remesh()
     chunks_meshed += 1
-    add_child(vox)
-    vox.global_position = c
     
     chunks_loaded[c] = vox
                 
@@ -125,8 +143,12 @@ var dirty_chunk_mutex = Mutex.new()
 var dirty_chunks = []
 
 func dirtify_world():
-    var env = get_world_3d().environment
-    #env.sdfgi_enabled = !env.sdfgi_enabled
+    #var env = get_world_3d().environment
+    #env.sdfgi_min_cell_size = 0.2
+    var f = get_tree().current_scene
+    get_tree().current_scene = null
+    get_tree().current_scene = f
+    pass
 
 func set_block(coord : Vector3, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
@@ -421,5 +443,6 @@ func add_and_load_all(chunks):
 func initial_add_vox(vox : Node3D, coord : Vector3):
     add_child(vox)
     vox.global_position = coord
+    
     vox.force_update_transform()
     vox.accept_remesh()
