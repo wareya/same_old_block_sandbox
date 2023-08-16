@@ -267,7 +267,7 @@ func accept_remesh():
         
         add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
         add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
-        add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTrans.tres"), false)
+        add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTransOuter.tres"), false)
         remesh_output = []
         
         remesh_output_mutex.unlock()

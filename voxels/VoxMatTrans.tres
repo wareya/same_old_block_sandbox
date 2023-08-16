@@ -6,7 +6,7 @@
 code = "// NOTE: Shader automatically converted from Godot Engine 4.1.stable's StandardMaterial3D.
 
 shader_type spatial;
-render_mode blend_mix,cull_disabled,diffuse_lambert,specular_schlick_ggx;
+render_mode blend_mix,cull_disabled,diffuse_lambert,specular_schlick_ggx,depth_draw_always;
 uniform sampler2DArray texture_albedo : source_color,filter_nearest_mipmap_anisotropic,repeat_enable;
 global uniform sampler2D distorted_normals : hint_normal,filter_linear_mipmap_anisotropic,repeat_enable;
 
@@ -184,7 +184,7 @@ void fragment()
     ALBEDO = mix(ALBEDO, grey, fresnel);
     tex.a = mix(tex.a, 1.0, fresnel);
     
-    BACKLIGHT = vec3(1.0);
+    //BACKLIGHT = vec3(1.0);
     
     ALPHA = tex.a;
 }
@@ -248,6 +248,6 @@ void light()
 */"
 
 [resource]
-render_priority = 0
+render_priority = 1
 shader = SubResource("Shader_c04dw")
 shader_parameter/texture_albedo = ExtResource("1_06fay")
