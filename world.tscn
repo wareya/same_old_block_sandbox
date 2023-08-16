@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=30 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Script" path="res://player/SimplePlayer.gd" id="1_xe5oo"]
@@ -45,6 +45,7 @@ ssao_radius = 0.71
 ssao_light_affect = 1.0
 ssao_ao_channel_affect = 1.0
 ssil_enabled = true
+ssil_intensity = 0.5
 ssil_sharpness = 0.83
 ssil_normal_rejection = 0.7
 sdfgi_cascades = 5
@@ -106,6 +107,15 @@ shader_parameter/water_color = Color(0.203922, 0.384314, 0.772549, 0.501961)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_c61td"]
+auto_exposure_enabled = true
+auto_exposure_scale = 0.3
+auto_exposure_speed = 2.0
+dof_blur_far_distance = 0.01
+dof_blur_far_transition = -1.0
+auto_exposure_min_sensitivity = 100.0
+auto_exposure_max_sensitivity = 64000.0
 
 [sub_resource type="Shader" id="Shader_0gwjq"]
 code = "// NOTE: Shader automatically converted from Godot Engine 4.1.stable's CanvasItemMaterial.
@@ -192,6 +202,7 @@ color = Color(0.137255, 0.356863, 0.764706, 0.266667)
 
 [node name="OmniLight3D" type="OmniLight3D" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.638, 0)
+visible = false
 light_energy = 0.1
 light_indirect_energy = 16.0
 light_specular = 0.0
@@ -199,6 +210,8 @@ light_specular = 0.0
 [node name="RemoteTransform3D" type="RemoteTransform3D" parent="Player"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
 remote_path = NodePath("../Minimap/SubViewport/Node3D")
+update_rotation = false
+update_scale = false
 
 [node name="Minimap" type="SubViewportContainer" parent="Player"]
 visible = false
@@ -213,6 +226,7 @@ stretch = true
 [node name="SubViewport" type="SubViewport" parent="Player/Minimap"]
 transparent_bg = true
 handle_input_locally = false
+texture_mipmap_bias = 2.0
 size = Vector2i(200, 200)
 render_target_update_mode = 0
 
@@ -223,10 +237,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18.9261, 0)
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 263.528, 0)
 projection = 1
 current = true
+fov = 37.8493
 size = 50.0
 
 [node name="BuildBlocker" type="Area3D" parent="Player"]
-visible = false
 collision_layer = 0
 collision_mask = 0
 monitoring = false
@@ -254,6 +268,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Player/CameraHolder"]
 cull_mask = 524287
+attributes = SubResource("CameraAttributesPractical_c61td")
 current = true
 fov = 90.0
 

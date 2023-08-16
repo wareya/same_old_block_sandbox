@@ -81,7 +81,10 @@ limits/debugger/max_queued_messages=20480
 
 [rendering]
 
-lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+environment/ssil/quality=0
+environment/ssil/half_size=false
+environment/ssil/fadeout_from=512.0
+environment/ssil/fadeout_to=1164.3
 anti_aliasing/screen_space_roughness_limiter/enabled=false
 anti_aliasing/quality/use_taa=true
 

@@ -186,8 +186,6 @@ void fragment()
     
     BACKLIGHT = vec3(1.0);
     
-    ROUGHNESS = 0.0;
-    
     ALPHA = tex.a;
 }
 
