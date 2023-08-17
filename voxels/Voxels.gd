@@ -146,9 +146,10 @@ func remesh():
     dirty_command_mutex.unlock()
     
     VoxelMesher.side_cache = side_cache
-    var solid_arrays = VoxelMesher.remesh_get_arrays(0, chunk_position, neighbor_chunks)
-    var atest_arrays = VoxelMesher.remesh_get_arrays(1, chunk_position, neighbor_chunks)
-    var trans_arrays = VoxelMesher.remesh_get_arrays(2, chunk_position, neighbor_chunks)
+    var arrays = VoxelMesher.remesh_get_arrays(chunk_position, neighbor_chunks)
+    var solid_arrays = arrays[0]
+    var atest_arrays = arrays[1]
+    var trans_arrays = arrays[2]
     side_cache = VoxelMesher.side_cache
     
     # wrong way, have to do it to avoid crashes

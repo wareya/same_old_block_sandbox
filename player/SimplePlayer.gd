@@ -72,9 +72,9 @@ func handle_friction_and_accel(delta):
 @export var do_camera_smoothing : bool = true
 @export var do_stairs : bool = true
 @export var do_skipping_hack : bool = false
-@export var stairs_cause_floor_snap = false
+@export var stairs_cause_floor_snap : bool = false
 @export var skipping_hack_distance : float = 0.08
-@export var step_height = 0.5
+@export var step_height : float = 0.5
 
 var started_process_on_floor = false
 
@@ -333,7 +333,7 @@ func _process(delta: float) -> void:
         if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.5, 0))):
             global_position.y += 0.5
     
-    $WaterOverlay.visible = head_in_water
+    $OverlayLayer/WaterOverlay.visible = head_in_water
     
     handle_camera_adjustment(start_pos, delta)
     #add_collision_debug_visualizer(delta)
@@ -375,7 +375,7 @@ func check_chunk(start_pos, start_vel):
         
         return null
     else:
-        $DebugLabel.text = str(chunk_coord)
+        $DebugLabel.text = "%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1)]
         var block_in = chunk.get_block(global_position + Vector3.UP*0.5)
         var head_block_in = chunk.get_block(global_position + Vector3.UP*1.5)
         in_water = block_in == 6 or head_block_in == 6
@@ -396,6 +396,9 @@ func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
         velocity.y -= gravity * delta * 0.5 * grav_mod
         velocity.y *= pow(drag, delta*10.0)
     
+
+func refresh_probe():
+    $ReflectionProbe.max_distance = randf_range(64.0, 65.0)
 
 var in_water : bool = false
 var head_in_water : bool = false
@@ -429,8 +432,8 @@ func _unhandled_input(event: InputEvent) -> void:
             else:
                 Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
-@export var third_person = false
-@export var camera_smoothing_meters_per_sec = 3.0
+@export var third_person : bool = false
+@export var camera_smoothing_meters_per_sec : float = 3.0
 # used to smooth out the camera when climbing stairs
 var camera_offset_y = 0.0
 func handle_camera_adjustment(start_position, delta):

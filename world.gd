@@ -109,21 +109,23 @@ func load_chunk(coord : Vector3):
 var chunks_meshed = 0
 
 # Called when the node enters the scene tree for the first time.
+static var _spawn_range = 2
 func _ready() -> void:
     base_noise.seed = world_seed
     print(world_seed)
     print(base_noise.seed)
     
-    var _range = 1
     for y in range(-1, 2):
-        for z in range(-_range, _range+1):
-            for x in range(-_range, _range+1):
+        for z in range(-_spawn_range, _spawn_range+1):
+            for x in range(-_spawn_range, _spawn_range+1):
                 var c = Vector3(x, y, z)*Voxels.chunk_size
                 
                 var vox = load_chunk(c)
                 all_chunks[c] = vox
     
-    var c = Vector3()
+    place_player()
+    
+    var c = get_player_chunk_coord()
     var vox = all_chunks[c]
     add_child(vox)
     vox.global_position = c
@@ -133,7 +135,46 @@ func _ready() -> void:
     chunks_meshed += 1
     
     chunks_loaded[c] = vox
-                
+    
+
+func place_player():
+    var attempts = 1024
+    seed(world_seed)
+    
+    var land_height = -1
+    var good_x = 0
+    var good_z = 0
+    for _i in attempts:
+        var z = randi_range(-Voxels.chunk_size*_spawn_range, Voxels.chunk_size*_spawn_range)
+        var x = randi_range(-Voxels.chunk_size*_spawn_range, Voxels.chunk_size*_spawn_range)
+        
+        land_height = -1
+        var found_air = false
+        for y in range(Voxels.chunk_size*1.5 - 2, -Voxels.chunk_size, -1):
+            var vox = get_block(Vector3(x, y, z))
+            var type = Voxels.vox_get_type(vox)
+            if type == 2:
+                break
+            elif vox == 0:
+                found_air = true
+                continue
+            elif (type == 0 or type == 1) and found_air:
+                land_height = y
+                good_x = x
+                good_z = z
+                break
+        if land_height >= 0:
+            break
+    
+    if land_height < 0:
+        print("failed to position player")
+        land_height = 24
+    
+    var player = preload("res://player/player.tscn").instantiate()
+    add_child(player)
+    player.force_update_transform()
+    player.global_position = Vector3(good_x, land_height + 0.5, good_z)
+    print("added player at ", player.global_position)
 
 static func get_chunk_coord(coord):
     var chunk_coord = ((coord + Vector3.ONE*0.5) / Voxels.chunk_size).round() * Voxels.chunk_size
@@ -143,12 +184,16 @@ var dirty_chunk_mutex = Mutex.new()
 var dirty_chunks = []
 
 func dirtify_world():
-    #var env = get_world_3d().environment
-    #env.sdfgi_min_cell_size = 0.2
-    var f = get_tree().current_scene
-    get_tree().current_scene = null
-    get_tree().current_scene = f
-    pass
+    var player = DummySingleton.get_tree().get_first_node_in_group("Player")
+    if player:
+        player.refresh_probe()
+
+func get_block(coord : Vector3) -> int:
+    var chunk_coord = World.get_chunk_coord(coord)
+    if chunk_coord in all_chunks:
+        var chunk = all_chunks[chunk_coord]
+        return chunk.get_block(coord)
+    return 0
 
 func set_block(coord : Vector3, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
@@ -200,9 +245,11 @@ func _process(delta : float) -> void:
     )
     
     if !world_work_thread.is_started():
+        print("starting world work thread")
         world_work_thread.start(dynamic_world_loop)
     
     if !remesh_work_thread.is_started():
+        print("starting remesh work thread")
         remesh_work_thread.start(remesh_work_loop)
     
     time_alive += delta
@@ -295,7 +342,7 @@ var range_h = 512/Voxels.chunk_size/2
 var range_v = 128/Voxels.chunk_size/2
 
 var _found_unloadable_chunks = []
-var _find_chunks_prev_player_chunk_2 = Vector3()
+var _find_chunks_prev_player_chunk_2 = Vector3(0.1, 0.1, 0.1)
 var unload_threshold = 1.5 * Voxels.chunk_size
 func dynamically_unload_world(player_chunk):
     if _find_chunks_prev_player_chunk_2 != player_chunk:
@@ -331,12 +378,13 @@ func do_unload(chunk_list : Array):
             chunk.get_parent().remove_child(chunk)
         chunk.free()
 
-var _find_chunks_prev_player_chunk = Vector3()
+var _find_chunks_prev_player_chunk = Vector3(0.1, 0.1, 0.1)
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
 func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
     var dot = facing_dir.dot(_find_chunks_prev_facing_dir)
     if _find_chunks_prev_player_chunk != player_chunk or dot < 0.95:
+        #print("finding chunk load")
         _find_chunks_prev_player_chunk = player_chunk
         _find_chunks_prev_facing_dir = facing_dir
         
@@ -429,14 +477,18 @@ func add_and_load_all(chunks):
     if chunks.size() == 0:
         return
     var _start = Time.get_ticks_usec()
-    var just_chunks = []
     for chunk in chunks:
         if chunk.size() == 2:
             initial_add_vox(chunk[0], chunk[1])
         else:
             add_child(chunk[0])
-        just_chunks.push_back(chunk[0])
+    
+    var just_chunks = []
+    for coord in all_chunks:
+        if not coord in f_index_table:
+            just_chunks.push_back(all_chunks[coord])
     trigger_save(just_chunks)
+    
     dirtify_world()
     #print("add time: ", (Time.get_ticks_usec() - _start)/1000.0)
 
