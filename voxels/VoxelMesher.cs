@@ -167,8 +167,8 @@ public partial class VoxelMesher : RefCounted
                 int bottom = 0;
                 int top = core_height;
                 
-                if (vox_side_up_type == 2)
-                    top = info_max;
+                //if (vox_side_up_type == 2)
+                //    top = info_max;
                 
                 if (vox_side_type == 2)
                     bottom = static_water_height;
@@ -234,23 +234,17 @@ public partial class VoxelMesher : RefCounted
                     // 0x7F = special (always recalculate)
                     if (cached == 0xFF)
                     {
-                        var force_recalculate = false;
                         cached = 0;
-                        
                         if (vox != 0)
                         {
                             foreach (var d in Enumerable.Range(0, 6))
                             {
-                                var current_side_val = (0,0);
-                                if (vox_xparent && d >= 2)
-                                    current_side_val = side_val[d-2];
-                                
                                 var dir = dirs[d];
                                 if (!vox_atest)
                                 {
                                     var neighbor_coord = new Vector3(x, y, z) + dir;
                                     var neighbor = get_voxel(neighbor_coord + chunk_position);
-                                    var xparent_condition = vox_xparent && neighbor != 0 && d != 0 && current_side_val.Item2 >= 0;
+                                    var xparent_condition = vox_xparent && neighbor != 0 && d != 0 && (d == 1 || (side_val[d-2].Item2 >= 0));
                                     if (voxel_same_type(neighbor, vox_type) || xparent_condition)
                                         continue;
                                 }
@@ -287,7 +281,7 @@ public partial class VoxelMesher : RefCounted
                                 bitmask_cache[vox_index*6 + d] = bitmask;
                                 cached |= (byte)(1<<d);
                             }
-                            side_cache[vox_index] = force_recalculate ? (byte)0x7F : cached;
+                            side_cache[vox_index] = cached;
                         }
                     }
                     
@@ -364,6 +358,8 @@ public partial class VoxelMesher : RefCounted
                                 {
                                     var dir_mat_index = Math.Min(d, 2);
                                     var array_index = voxel_info[vox][dir_mat_index];
+                                    var index_a = (byte)(array_index >> 8);
+                                    var index_b = (byte)(array_index & 0xFF);
                                     
                                     var side_top = (vox_type == 2 && d >= 2) ? side_val[d-2].Item1 : info_max;
                                     var side_bottom = (vox_type == 2 && d >= 2) ? side_val[d-2].Item2 : 0;
@@ -386,24 +382,20 @@ public partial class VoxelMesher : RefCounted
                                     for (int i = 0; i < 4; i++)
                                     {
                                         var v = vert_table[d*4 + i];
-                                        if (d == 0 && top_val != info_max)
-                                            v.Y -= 1.0f-((float)top_val)/(float)info_max;
-                                        if (d >= 2 && i < 2 && side_top != info_max)
-                                            v.Y -= 1.0f-((float)side_top)/(float)info_max;
-                                        if (d >= 2 && i >= 2 && side_bottom != 0)
-                                            v.Y += ((float)side_bottom)/(float)info_max;
+                                        if (vox_xparent)
+                                        {
+                                            if (d == 0 && top_val != info_max)
+                                                v.Y -= 1.0f-((float)top_val)/(float)info_max;
+                                            if (d >= 2 && i < 2 && side_top != info_max)
+                                                v.Y -= 1.0f-((float)side_top)/(float)info_max;
+                                            if (d >= 2 && i >= 2 && side_bottom != 0)
+                                                v.Y += ((float)side_bottom)/(float)info_max;
+                                        }
                                         
                                         arrays[vox_type].Verts.Add(coord + v);
-                                        
-                                        var index_a = (byte)(array_index >> 8);
-                                        var index_b = (byte)(array_index & 0xFF);
-                                        arrays[vox_type].FaceInfo.Add((byte)d);
-                                        arrays[vox_type].FaceInfo.Add(index_a);
-                                        arrays[vox_type].FaceInfo.Add(index_b);
-                                        arrays[vox_type].FaceInfo.Add(bitmask);
+                                        arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)d, index_a, index_b, bitmask});
                                     }
-                                    foreach (var i in new int[]{0, 1, 2, 2, 1, 3})
-                                        arrays[vox_type].Indexes.Add(i_start + i);
+                                    arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
                                 }
                             }
                         }
