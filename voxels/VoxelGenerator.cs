@@ -64,11 +64,11 @@ public partial class VoxelGenerator : RefCounted
     }
     public static int chunk_size = 16;
     public static Aabb bounds = new Aabb(new Vector3(), Vector3.One*(chunk_size-1));
-    static List<(Vector3, int, uint)> get_tree_coords(Vector3 chunk_position, Noise noiser)
+    static List<(Vector3, int, uint)> get_tree_coords(Vector3 chunk_position, Noise noiser, int min, int max, int buffer, bool dirt_only = true)
     {
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
-        var tree_count = rng.RandiRange(3, 6);
+        var tree_count = rng.RandiRange(min, max);
         
         var offset = -Vector3.One*chunk_size/2 + chunk_position;
         var offset_2d = new Vector2(offset.X, offset.Z);
@@ -76,7 +76,6 @@ public partial class VoxelGenerator : RefCounted
         var trees = new List<(Vector3, int, uint)>();
         foreach (var _ in Enumerable.Range(0, tree_count))
         {
-            var buffer = 2; // FIXME: remove
             var x = rng.RandiRange(buffer, chunk_size-1-buffer);
             var z = rng.RandiRange(buffer, chunk_size-1-buffer);
             
@@ -94,6 +93,31 @@ public partial class VoxelGenerator : RefCounted
         }
         
         return trees;
+    }
+    static List<Vector3> get_grass_coords(Vector3 chunk_position, Noise noiser, int min, int max, bool dirt_only = true)
+    {
+        var rng = new RandomNumberGenerator();
+        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
+        var tree_count = rng.RandiRange(min, max);
+        
+        var offset = -Vector3.One*chunk_size/2 + chunk_position;
+        var offset_2d = new Vector2(offset.X, offset.Z);
+        
+        var coords = new List<Vector3>();
+        foreach (var _ in Enumerable.Range(0, tree_count))
+        {
+            var x = rng.RandiRange(0, chunk_size-1);
+            var z = rng.RandiRange(0, chunk_size-1);
+            
+            var c_2d = new Vector2(x, z) + offset_2d;
+            var (_, height, rock_part) = height_at_global(noiser, c_2d.X, c_2d.Y);
+            var is_rock = rock_part > 1.0f;
+            
+            if (height >= 0 && !is_rock)
+                coords.Add(new Vector3(x, height+1 - chunk_position.Y + chunk_size/2, z));
+        }
+        
+        return coords;
     }
     static int coord_to_index(Vector3 coord)
     {
@@ -141,7 +165,8 @@ public partial class VoxelGenerator : RefCounted
             }
         }
         
-        var tree_coords = get_tree_coords(chunk_position, noiser);
+        var tree_coords = get_tree_coords(chunk_position, noiser, 3, 6, 2);
+        
         foreach (var (coord, tall, grunge) in tree_coords)
         {
             var leaf_bottom = Math.Max(2, tall-3);
@@ -150,14 +175,12 @@ public partial class VoxelGenerator : RefCounted
             {
                 var range = 2;
                 var evergreen = (grunge & 256) != 0;
+                
                 if (evergreen)
-                {
                     range -= (y+tall-leaf_bottom)%2;
-                }
                 if (y+1 > tall)
-                {
                     range -= 1;
-                }
+                
                 foreach (var z in Enumerable.Range(-range, 2*range+1))
                 {
                     foreach (var x in Enumerable.Range(-range, 2*range+1))
@@ -187,6 +210,22 @@ public partial class VoxelGenerator : RefCounted
                 }
             }
         }
+        
+        var grass = get_grass_coords(chunk_position, noiser, 48, 96);
+        
+        var rng = new RandomNumberGenerator();
+        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
+        
+        foreach (var coord in grass)
+        {
+            if (bounds.HasPoint(coord))
+            {
+                var index = coord_to_index(coord);
+                if (voxels[index] == 0)
+                    voxels[index] = (byte)rng.RandiRange(7, 9);
+            }
+        }
+        
         return voxels;
     }
 }

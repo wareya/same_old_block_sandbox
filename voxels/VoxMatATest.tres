@@ -14,43 +14,77 @@ varying flat int index;
 
 void vertex()
 {
-    vec3 pos = VERTEX.xyz;
     int d = int(CUSTOM0.r * 255.0);
     int a = int(CUSTOM0.g * 255.0);
     int b = int(CUSTOM0.b * 255.0);
     index = (a << 8) | b;
     bitmask = int(CUSTOM0.a * 255.0);
     
-    if (d == 5)
+    vec3 orig_vertex = VERTEX;
+    
+    if (d >= 6)
     {
-        UV = vec2(-pos.z, -pos.y) + vec2(0.5);
-        NORMAL = vec3(1.0, 0.0, 0.0);
+        int item = VERTEX_ID/4/4;
+        item = item ^ (item*12593) ^ 0x10F9BA38;
+        float offset_x = float(item%1024)/1024.0;
+        float offset_z = float(item/5%1024)/1024.0;
+        VERTEX.x += offset_x*0.35;
+        VERTEX.z += offset_z*0.35;
     }
-    else if (d == 3)
-    {
-        UV = vec2(pos.x, -pos.y) + vec2(0.5);
-        NORMAL = vec3(0.0, 0.0, 1.0);
-    }
-    else if (d == 0)
+    
+    vec3 pos = orig_vertex.xyz;
+    
+    if (d == 0)
     {
         UV = vec2(pos.x, pos.z) + vec2(0.5);
         NORMAL = vec3(0.0, 1.0, 0.0);
     }
-    else if (d == 4)
+    else if (d == 1)
     {
-        UV = vec2(pos.z, -pos.y) + vec2(0.5);
-        NORMAL = vec3(-1.0, 0.0, 0.0);
+        UV = vec2(-pos.x, pos.z) + vec2(0.5);
+        NORMAL = vec3(0.0, -1.0, 0.0);
     }
     else if (d == 2)
     {
         UV = vec2(-pos.x, -pos.y) + vec2(0.5);
         NORMAL = vec3(0.0, 0.0, -1.0);
     }
-    else
+    else if (d == 3)
     {
-        UV = vec2(-pos.x, pos.z) + vec2(0.5);
-        NORMAL = vec3(0.0, -1.0, 0.0);
+        UV = vec2(pos.x, -pos.y) + vec2(0.5);
+        NORMAL = vec3(0.0, 0.0, 1.0);
     }
+    else if (d == 4)
+    {
+        UV = vec2(pos.z, -pos.y) + vec2(0.5);
+        NORMAL = vec3(-1.0, 0.0, 0.0);
+    }
+    else if (d == 5)
+    {
+        UV = vec2(-pos.z, -pos.y) + vec2(0.5);
+        NORMAL = vec3(1.0, 0.0, 0.0);
+    }
+    else // mesh
+    {
+        pos.x = (fract(pos.x + 0.5) - 0.5) / 0.9;
+        UV = vec2(pos.x, -pos.y) + vec2(0.5);
+        if (d == 6)
+            NORMAL = normalize(vec3( 1.0, 0.0, -1.0));
+        else if (d == 7)
+            NORMAL = normalize(vec3(-1.0, 0.0, -1.0));
+        else if (d == 8)
+            NORMAL = normalize(vec3(-1.0, 0.0,  1.0));
+        else if (d == 9)
+            NORMAL = normalize(vec3( 1.0, 0.0,  1.0));
+    }
+    
+    //float to_bottom
+    bool do_sway = (VERTEX_ID/2 % 2) == 0 || d < 6;
+    float offset_x = VERTEX.x/2.0;
+    float offset_z = VERTEX.z/3.0 + VERTEX.x/4.0;
+    float factor = do_sway ? 1.0 : 0.0;
+    VERTEX.x += sin(TIME*2.09 + VERTEX.y + offset_x)*0.05*factor;
+    VERTEX.z += cos(TIME*2.24 + VERTEX.y + 0.1 - offset_z)*0.05*factor;
 }
 
 #define BIT_00 1

@@ -321,7 +321,11 @@ func _process(delta: float) -> void:
         actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
         chunk = check_chunk(start_pos, start_vel)
     
-    var is_solid = func(id : int): return id != 0 and id != 6
+    var is_solid = func(id : int):
+        if id == 0:
+            return false
+        var type = VoxelMesher.vox_get_type_pub(id)
+        return type == 0 or type == 1
     
     if chunk:
         if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.01, 0))):
@@ -342,6 +346,8 @@ func _process(delta: float) -> void:
     
     cached_position = global_position
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
+
+var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func check_chunk(start_pos, start_vel):
     var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
@@ -379,7 +385,7 @@ func check_chunk(start_pos, start_vel):
         var block_in = chunk.get_block(global_position + Vector3.UP*0.5)
         var head_block_in = chunk.get_block(global_position + Vector3.UP*1.5)
         in_water = block_in == 6 or head_block_in == 6
-        head_in_water = chunk.get_block($CameraHolder.global_position + Vector3.UP/8.0)
+        head_in_water = chunk.get_block($CameraHolder.global_position + Vector3.UP/8.0) == 6
         return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):

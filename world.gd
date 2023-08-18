@@ -6,7 +6,7 @@ var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
 
-var save_disabled = false
+var save_disabled = true
 var backing_file : FileAccess = null
 
 func _init():
@@ -352,6 +352,8 @@ func dynamically_unload_world(player_chunk):
         
         # FIXME move the loaded, meshed neighbors of unloaded chunks into "unmeshed" state
         
+        chunk_table_mutex.lock()
+        
         for coord in all_chunks:
             var c_local = coord - player_chunk
             if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size + unload_threshold:
@@ -360,7 +362,6 @@ func dynamically_unload_world(player_chunk):
             #    _found_unloadable_chunks.push_back(coord)
         
         var unload_list = []
-        chunk_table_mutex.lock()
         for coord in _found_unloadable_chunks:
             var chunk = all_chunks[coord]
             all_chunks.erase(coord)
@@ -484,9 +485,18 @@ func add_and_load_all(chunks):
             add_child(chunk[0])
     
     var just_chunks = []
-    for coord in all_chunks:
+    
+    chunk_table_mutex.lock()
+    
+    for coord in all_chunks.keys():
         if not coord in f_index_table:
+            # FIXME: had an "invalid get index" error here that implies a threading problem
+            # added .keys() above to try to fix it
+            # we'll find out later if it did!
             just_chunks.push_back(all_chunks[coord])
+    
+    chunk_table_mutex.unlock()
+    
     trigger_save(just_chunks)
     
     dirtify_world()

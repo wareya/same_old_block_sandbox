@@ -150,11 +150,12 @@ func remesh():
     var solid_arrays = arrays[0]
     var atest_arrays = arrays[1]
     var trans_arrays = arrays[2]
+    var mesh_arrays = arrays[3]
     side_cache = VoxelMesher.side_cache
     
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()
-    remesh_output = [solid_arrays, atest_arrays, trans_arrays]
+    remesh_output = [solid_arrays, atest_arrays, trans_arrays, mesh_arrays]
     #print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
     #print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
     remesh_output_mutex.unlock()
@@ -269,6 +270,7 @@ func accept_remesh():
         add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
         add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
         add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTransOuter.tres"), false)
+        add_arrays.call(mesh_child, remesh_output[3], preload("res://voxels/VoxMatATest.tres"), false)
         remesh_output = []
         
         remesh_output_mutex.unlock()

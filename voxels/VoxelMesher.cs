@@ -6,21 +6,6 @@ using System.Runtime.CompilerServices;
 
 public partial class VoxelMesher : RefCounted
 {
-    static HashSet<int> vox_alphatest = new HashSet<int>{
-        5,
-    };
-    static HashSet<int> vox_transparent = new HashSet<int> {
-        6,
-    };
-
-    static int vox_get_type(int vox)
-    {
-        if (vox_alphatest.Contains(vox))
-            return 1;
-        else if(vox_transparent.Contains(vox))
-            return 2;
-        return 0;
-    }
     static Vector3 get_chunk_coord(Vector3 coord)
     {
         var chunk_coord = ((coord + Vector3.One*0.5f) / VoxelGenerator.chunk_size).Round() * VoxelGenerator.chunk_size;
@@ -58,6 +43,37 @@ public partial class VoxelMesher : RefCounted
 
     static Vector3[] vert_table = generate_verts();
     
+    static (Vector3[], Vector3[]) generate_mesh_verts()
+    {
+        Vector3[] temp_verts = new Vector3[4]
+        {
+            new Vector3(0.5f, 0.5f, 0.5f),
+            new Vector3(-0.5f, 0.5f, -0.5f),
+            new Vector3(0.5f, -0.5f, 0.5f),
+            new Vector3(-0.5f, -0.5f, -0.5f),
+        };
+        var verts = new Vector3[4*4];
+        var normals = new Vector3[4*4];
+        var j = 0;
+        foreach (var step in Enumerable.Range(0, 4))
+        {
+            var angle = (float)step * Mathf.Pi * 0.5f;
+            var xform = Transform3D.Identity.Rotated(Vector3.Up, angle);
+            var n = xform * (new Vector3(-1.0f, 0.0f, 1.0f)).Normalized();
+            for (var i = 0; i < 4; i++)
+            {
+                var v = temp_verts[i] * new Vector3(0.9f, 1.0f, 0.9f);
+                v = xform * v;
+                verts[j] = v;
+                normals[j] = n;
+                j += 1;
+            }
+        }
+        return (verts, normals);
+    }
+    
+    static (Vector3[], Vector3[]) mesh_vert_table = generate_mesh_verts();
+    
     // top, bottom, side
     static int[][] voxel_info = new int[][]{
         new int[]{0, 0, 0}, // air
@@ -68,7 +84,52 @@ public partial class VoxelMesher : RefCounted
         // 5
         new int[]{60, 60, 60}, // leaf
         new int[]{70, 70, 70}, // water
+        new int[]{110, 110, 110}, // grass a
+        new int[]{111, 111, 111}, // grass b
+        new int[]{112, 112, 112}, // grass c
     };
+    static HashSet<int> vox_alphatest = new HashSet<int>{
+        5,
+    };
+    static HashSet<int> vox_transparent = new HashSet<int> {
+        6,
+    };
+    static HashSet<int> vox_mesh = new HashSet<int> {
+        7,
+        8,
+        9,
+    };
+    static HashSet<int> vox_bitmaskless = new HashSet<int> {
+        6,
+        7,
+        8,
+        9,
+    };
+    
+    static int vox_get_type(int vox)
+    {
+        if (vox_alphatest.Contains(vox))
+            return 1;
+        else if(vox_transparent.Contains(vox))
+            return 2;
+        else if(vox_mesh.Contains(vox))
+            return 3;
+        return 0;
+    }
+    public int vox_get_type_pub(int vox)
+    {
+        return vox_get_type(vox);
+    }
+    
+    static bool vox_get_bitmaskless(int vox)
+    {
+        return vox_bitmaskless.Contains(vox);
+    }
+    
+    static bool vox_get_mesh(int vox)
+    {
+        return vox_mesh.Contains(vox);
+    }
     
     byte[] bitmask_cache = new byte[VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*6];
     
@@ -185,7 +246,7 @@ public partial class VoxelMesher : RefCounted
             return ret;
         };
         
-        var arrays = new Arrays[3]{new Arrays(), new Arrays(), new Arrays()};
+        var arrays = new Arrays[4]{new Arrays(), new Arrays(), new Arrays(), new Arrays()};
         
         var start = Time.GetTicksUsec();
         
@@ -253,28 +314,31 @@ public partial class VoxelMesher : RefCounted
                                 byte bit = 0;
                                 var right_dir = right_dirs[d];
                                 var up_dir = up_dirs[d];
-                                for (int _y = -1; _y <= 1; _y++)
+                                if (!vox_get_bitmaskless(vox))
                                 {
-                                    for (int _x = -1; _x <= 1; _x++)
+                                    for (int _y = -1; _y <= 1; _y++)
                                     {
-                                        if (_y == 0 && _x == 0)
-                                            continue;
-                                        var next_coord = new Vector3(x, y, z) + _y*up_dir + _x*right_dir;
-                                        var occlude_coord = next_coord + dir;
-                                        var bit_is_same = 0;
-                                        
-                                        var next = get_voxel(next_coord + chunk_position);
-                                        if (next == vox)
-                                            bit_is_same = 1;
-                                        
-                                        if (bit_is_same == 1)
+                                        for (int _x = -1; _x <= 1; _x++)
                                         {
-                                            var occlude = get_voxel(occlude_coord + chunk_position);
-                                            if (voxel_same_type(occlude, vox_type))
-                                                bit_is_same = 0;
+                                            if (_y == 0 && _x == 0)
+                                                continue;
+                                            var next_coord = new Vector3(x, y, z) + _y*up_dir + _x*right_dir;
+                                            var occlude_coord = next_coord + dir;
+                                            var bit_is_same = 0;
+                                            
+                                            var next = get_voxel(next_coord + chunk_position);
+                                            if (next == vox)
+                                                bit_is_same = 1;
+                                            
+                                            if (bit_is_same == 1)
+                                            {
+                                                var occlude = get_voxel(occlude_coord + chunk_position);
+                                                if (voxel_same_type(occlude, vox_type))
+                                                    bit_is_same = 0;
+                                            }
+                                            bitmask |= (byte)(bit_is_same<<bit);
+                                            bit += 1;
                                         }
-                                        bitmask |= (byte)(bit_is_same<<bit);
-                                        bit += 1;
                                     }
                                 }
                                 
@@ -301,110 +365,139 @@ public partial class VoxelMesher : RefCounted
                         var prev_i_4 = prev_x[x].Item3;
                         var prev_i_5 = prev_x[x].Item4;
                         
-                        foreach (var d in Enumerable.Range(0, 6))
+                        if (vox_get_mesh(vox))
                         {
-                            var prev_bitmask = prev_bitmasks[d];
-                            var prev_x_bitmask = prev_x[x].Item5[d];
-                            var bitmask = bitmask_cache[vox_index*6 + d];
-                            prev_bitmasks[d] = bitmask;
-                            var dir = dirs[d];
-                            if ((cached & (1<<d)) != 0)
+                            var array_index = voxel_info[vox][0];
+                            var index_a = (byte)(array_index >> 8);
+                            var index_b = (byte)(array_index & 0xFF);
+                            
+                            for (int j = 0; j < 4; j++)
                             {
-                                if (d < 4 &&
-                                    (prev_cached & (1<<d)) != 0 &&
-                                    prev_bitmask == bitmask &&
-                                    prev_type == vox &&
-                                    ((d >= 2) ? (prev_side_val[d-2] == side_val[d-2]) : true))
+                                var i_start = arrays[vox_type].Verts.Count();
+                                
+                                for (int i = 0; i < 4; i++)
                                 {
-                                    if (d == 0)
-                                    {
-                                        arrays[vox_type].Verts[prev_i_0+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        arrays[vox_type].Verts[prev_i_0+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                    }
-                                    else if(d == 1)
-                                    {
-                                        arrays[vox_type].Verts[prev_i_1+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        arrays[vox_type].Verts[prev_i_1+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                    }
-                                    else if(d == 2)
-                                    {
-                                        arrays[vox_type].Verts[prev_i_2+0] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        arrays[vox_type].Verts[prev_i_2+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                    }
-                                    else if(d == 3)
-                                    {
-                                        arrays[vox_type].Verts[prev_i_3+1] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        arrays[vox_type].Verts[prev_i_3+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                    }
+                                    var v = mesh_vert_table.Item1[j*4 + i];
+                                    
+                                    arrays[vox_type].Verts.Add(coord + v);
+                                    arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)(6+j), index_a, index_b, 0xFF});
                                 }
-                                else if(d >= 4 &&
-                                    (prev_x[x].Item2 & (1<<d)) != 0 &&
-                                    prev_x_bitmask == bitmask &&
-                                    prev_x[x].Item1 == vox &&
-                                    prev_x[x].Item6[d-2] == side_val[d-2])
+                                arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
+                            }
+                            
+                            prev_side_val = side_val;
+                            prev_type = -1;
+                            prev_cached = cached;
+                            prev_x[x] = (-1, cached, prev_i_4, prev_i_5, (byte[])prev_bitmasks.Clone(), side_val);
+                            prev_x_need_clear[x] = true;
+                        }
+                        else
+                        {
+                            foreach (var d in Enumerable.Range(0, 6))
+                            {
+                                var prev_bitmask = prev_bitmasks[d];
+                                var prev_x_bitmask = prev_x[x].Item5[d];
+                                var bitmask = bitmask_cache[vox_index*6 + d];
+                                prev_bitmasks[d] = bitmask;
+                                var dir = dirs[d];
+                                if ((cached & (1<<d)) != 0)
                                 {
-                                    if (d == 4)
+                                    if (d < 4 &&
+                                        (prev_cached & (1<<d)) != 0 &&
+                                        prev_bitmask == bitmask &&
+                                        prev_type == vox &&
+                                        ((d >= 2) ? (prev_side_val[d-2] == side_val[d-2]) : true))
                                     {
-                                        arrays[vox_type].Verts[prev_i_4+1] += new Vector3(0.0f, 0.0f, 1.0f);
-                                        arrays[vox_type].Verts[prev_i_4+3] += new Vector3(0.0f, 0.0f, 1.0f);
-                                    }
-                                    else if (d == 5)
-                                    {
-                                        arrays[vox_type].Verts[prev_i_5+0] += new Vector3(0.0f, 0.0f, 1.0f);
-                                        arrays[vox_type].Verts[prev_i_5+2] += new Vector3(0.0f, 0.0f, 1.0f);
-                                    }
-                                }
-                                else
-                                {
-                                    var dir_mat_index = Math.Min(d, 2);
-                                    var array_index = voxel_info[vox][dir_mat_index];
-                                    var index_a = (byte)(array_index >> 8);
-                                    var index_b = (byte)(array_index & 0xFF);
-                                    
-                                    var side_top = (vox_type == 2 && d >= 2) ? side_val[d-2].Item1 : info_max;
-                                    var side_bottom = (vox_type == 2 && d >= 2) ? side_val[d-2].Item2 : 0;
-                                    
-                                    prev_bitmasks[d] = bitmask;
-                                    var i_start = arrays[vox_type].Verts.Count();
-                                    if (d == 0)
-                                        prev_i_0 = i_start;
-                                    else if(d == 1)
-                                        prev_i_1 = i_start;
-                                    else if(d == 2)
-                                        prev_i_2 = i_start;
-                                    else if(d == 3)
-                                        prev_i_3 = i_start;
-                                    else if(d == 4)
-                                        prev_i_4 = i_start;
-                                    else if(d == 5)
-                                        prev_i_5 = i_start;
-                                    
-                                    for (int i = 0; i < 4; i++)
-                                    {
-                                        var v = vert_table[d*4 + i];
-                                        if (vox_xparent)
+                                        if (d == 0)
                                         {
-                                            if (d == 0 && top_val != info_max)
-                                                v.Y -= 1.0f-((float)top_val)/(float)info_max;
-                                            if (d >= 2 && i < 2 && side_top != info_max)
-                                                v.Y -= 1.0f-((float)side_top)/(float)info_max;
-                                            if (d >= 2 && i >= 2 && side_bottom != 0)
-                                                v.Y += ((float)side_bottom)/(float)info_max;
+                                            arrays[vox_type].Verts[prev_i_0+2] += new Vector3(1.0f, 0.0f, 0.0f);
+                                            arrays[vox_type].Verts[prev_i_0+3] += new Vector3(1.0f, 0.0f, 0.0f);
                                         }
-                                        
-                                        arrays[vox_type].Verts.Add(coord + v);
-                                        arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)d, index_a, index_b, bitmask});
+                                        else if(d == 1)
+                                        {
+                                            arrays[vox_type].Verts[prev_i_1+2] += new Vector3(1.0f, 0.0f, 0.0f);
+                                            arrays[vox_type].Verts[prev_i_1+3] += new Vector3(1.0f, 0.0f, 0.0f);
+                                        }
+                                        else if(d == 2)
+                                        {
+                                            arrays[vox_type].Verts[prev_i_2+0] += new Vector3(1.0f, 0.0f, 0.0f);
+                                            arrays[vox_type].Verts[prev_i_2+2] += new Vector3(1.0f, 0.0f, 0.0f);
+                                        }
+                                        else if(d == 3)
+                                        {
+                                            arrays[vox_type].Verts[prev_i_3+1] += new Vector3(1.0f, 0.0f, 0.0f);
+                                            arrays[vox_type].Verts[prev_i_3+3] += new Vector3(1.0f, 0.0f, 0.0f);
+                                        }
                                     }
-                                    arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
+                                    else if(d >= 4 &&
+                                        (prev_x[x].Item2 & (1<<d)) != 0 &&
+                                        prev_x_bitmask == bitmask &&
+                                        prev_x[x].Item1 == vox &&
+                                        prev_x[x].Item6[d-2] == side_val[d-2])
+                                    {
+                                        if (d == 4)
+                                        {
+                                            arrays[vox_type].Verts[prev_i_4+1] += new Vector3(0.0f, 0.0f, 1.0f);
+                                            arrays[vox_type].Verts[prev_i_4+3] += new Vector3(0.0f, 0.0f, 1.0f);
+                                        }
+                                        else if (d == 5)
+                                        {
+                                            arrays[vox_type].Verts[prev_i_5+0] += new Vector3(0.0f, 0.0f, 1.0f);
+                                            arrays[vox_type].Verts[prev_i_5+2] += new Vector3(0.0f, 0.0f, 1.0f);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var dir_mat_index = Math.Min(d, 2);
+                                        var array_index = voxel_info[vox][dir_mat_index];
+                                        var index_a = (byte)(array_index >> 8);
+                                        var index_b = (byte)(array_index & 0xFF);
+                                        
+                                        var side_top = (vox_type == 2 && d >= 2) ? side_val[d-2].Item1 : info_max;
+                                        var side_bottom = (vox_type == 2 && d >= 2) ? side_val[d-2].Item2 : 0;
+                                        
+                                        prev_bitmasks[d] = bitmask;
+                                        var i_start = arrays[vox_type].Verts.Count();
+                                        if (d == 0)
+                                            prev_i_0 = i_start;
+                                        else if(d == 1)
+                                            prev_i_1 = i_start;
+                                        else if(d == 2)
+                                            prev_i_2 = i_start;
+                                        else if(d == 3)
+                                            prev_i_3 = i_start;
+                                        else if(d == 4)
+                                            prev_i_4 = i_start;
+                                        else if(d == 5)
+                                            prev_i_5 = i_start;
+                                        
+                                        for (int i = 0; i < 4; i++)
+                                        {
+                                            var v = vert_table[d*4 + i];
+                                            if (vox_xparent)
+                                            {
+                                                if (d == 0 && top_val != info_max)
+                                                    v.Y -= 1.0f-((float)top_val)/(float)info_max;
+                                                if (d >= 2 && i < 2 && side_top != info_max)
+                                                    v.Y -= 1.0f-((float)side_top)/(float)info_max;
+                                                if (d >= 2 && i >= 2 && side_bottom != 0)
+                                                    v.Y += ((float)side_bottom)/(float)info_max;
+                                            }
+                                            
+                                            arrays[vox_type].Verts.Add(coord + v);
+                                            arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)d, index_a, index_b, bitmask});
+                                        }
+                                        arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
+                                    }
                                 }
                             }
+                            
+                            prev_side_val = side_val;
+                            prev_type = vox;
+                            prev_cached = cached;
+                            prev_x[x] = (vox, cached, prev_i_4, prev_i_5, (byte[])prev_bitmasks.Clone(), side_val);
+                            prev_x_need_clear[x] = true;
                         }
-                        
-                        prev_side_val = side_val;
-                        prev_type = vox;
-                        prev_cached = cached;
-                        prev_x[x] = (vox, cached, prev_i_4, prev_i_5, (byte[])prev_bitmasks.Clone(), side_val);
-                        prev_x_need_clear[x] = true;
                     }
                 }
             }
