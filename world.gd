@@ -126,6 +126,7 @@ func _ready() -> void:
     place_player()
     
     var c = get_player_chunk_coord()
+    print(c)
     var vox = all_chunks[c]
     add_child(vox)
     vox.global_position = c
@@ -174,6 +175,7 @@ func place_player():
     add_child(player)
     player.force_update_transform()
     player.global_position = Vector3(good_x, land_height + 0.5, good_z)
+    player.cached_position = player.global_position
     print("added player at ", player.global_position)
 
 static func get_chunk_coord(coord):
@@ -335,6 +337,7 @@ func dynamic_world_loop():
 # 128 = 4 chunk distance
 # 256 = 8 chunk distance
 # 512 = 16 chunk distance
+# 768 = 24 chunk distance
 # 1024 = 32 chunk distance
 
 var range_h = 512/Voxels.chunk_size/2

@@ -94,3 +94,7 @@ distorted_normals={
 "type": "sampler2D",
 "value": "res://disorted_normals.tres"
 }
+render_distance={
+"type": "float",
+"value": 4096.0
+}

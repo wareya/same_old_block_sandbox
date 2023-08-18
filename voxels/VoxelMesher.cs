@@ -87,6 +87,10 @@ public partial class VoxelMesher : RefCounted
         new int[]{110, 110, 110}, // grass a
         new int[]{111, 111, 111}, // grass b
         new int[]{112, 112, 112}, // grass c
+        new int[]{80, 80, 80}, // flower a
+        new int[]{81, 81, 81}, // flower b
+        new int[]{82, 82, 82}, // flower c
+        new int[]{83, 83, 83}, // flower d
     };
     static HashSet<int> vox_alphatest = new HashSet<int>{
         5,
@@ -98,12 +102,20 @@ public partial class VoxelMesher : RefCounted
         7,
         8,
         9,
+        10,
+        11,
+        12,
+        13,
     };
     static HashSet<int> vox_bitmaskless = new HashSet<int> {
         6,
         7,
         8,
         9,
+        10,
+        11,
+        12,
+        13,
     };
     
     static int vox_get_type(int vox)

@@ -1,7 +1,7 @@
 [gd_scene load_steps=12 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
-[ext_resource type="Material" uid="uid://c6perjtd8jr4l" path="res://voxels/VoxMatTrans.tres" id="12_q81y0"]
+[ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="2_yo0d7"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
 noise_type = 0
@@ -53,6 +53,15 @@ glow_mix = 0.0
 glow_blend_mode = 1
 glow_hdr_threshold = 0.15
 glow_hdr_scale = 0.0
+fog_light_color = Color(0.647059, 0.745098, 0.94902, 1)
+fog_light_energy = 1.5
+fog_density = 0.001
+fog_sky_affect = 0.0
+fog_height = 1.0
+fog_height_density = 0.01
+volumetric_fog_density = 0.1394
+volumetric_fog_anisotropy = 0.9
+volumetric_fog_ambient_inject = 1.0
 
 [sub_resource type="LabelSettings" id="LabelSettings_7iqhx"]
 outline_size = 5
@@ -103,7 +112,7 @@ mesh = SubResource("SphereMesh_bul5h")
 [node name="MeshInstance3D2" type="MeshInstance3D" parent="."]
 visible = false
 mesh = SubResource("PlaneMesh_opc42")
-surface_material_override/0 = ExtResource("12_q81y0")
+surface_material_override/0 = ExtResource("2_yo0d7")
 
 [node name="MeshInstance3D3" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.96655, 0.189953, 0)

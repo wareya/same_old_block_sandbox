@@ -13,64 +13,19 @@ global uniform sampler2D distorted_normals : hint_normal,filter_linear_mipmap_an
 varying flat int bitmask;
 varying flat int index;
 
+#include \"res://voxels/common.gdshaderinc\"
+
 void vertex()
 {
     vec3 pos = VERTEX.xyz + NODE_POSITION_WORLD.xyz;
-    int d = int(CUSTOM0.r * 255.0);
-    int a = int(CUSTOM0.g * 255.0);
-    int b = int(CUSTOM0.b * 255.0);
-    index = ((a << 8) | b);//+70;
-    bitmask = int(CUSTOM0.a * 255.0);
     
-    BINORMAL = vec3(0.0, -1.0, 0.0);
-    if (d == 0)
-    {
-        UV = vec2(pos.x, pos.z) + vec2(0.5);
-        NORMAL = vec3(0.0, 1.0, 0.0);
-        TANGENT = vec3(-1.0, 0.0, 0.0);
-        BINORMAL = vec3(0.0, 0.0, 1.0);
-    }
-    else if (d == 1)
-    {
-        UV = vec2(-pos.x, pos.z) + vec2(0.5);
-        NORMAL = vec3(0.0, -1.0, 0.0);
-        TANGENT = vec3(-1.0, 0.0, 0.0);
-        BINORMAL = vec3(0.0, 0.0, -1.0);
-    }
-    else if (d == 2)
-    {
-        UV = vec2(-pos.x, -pos.y) + vec2(0.5);
-        NORMAL = vec3(0.0, 0.0, -1.0);
-        TANGENT = vec3(1.0, 0.0, 0.0);
-    }
-    else if (d == 3)
-    {
-        UV = vec2(pos.x, -pos.y) + vec2(0.5);
-        NORMAL = vec3(0.0, 0.0, 1.0);
-        TANGENT = vec3(-1.0, 0.0, 0.0);
-    }
-    else if (d == 4)
-    {
-        UV = vec2(pos.z, -pos.y) + vec2(0.5);
-        NORMAL = vec3(-1.0, 0.0, 0.0);
-        TANGENT = vec3(0.0, 0.0, -1.0);
-    }
-    else if (d == 5)
-    {
-        UV = vec2(-pos.z, -pos.y) + vec2(0.5);
-        NORMAL = vec3(1.0, 0.0, 0.0);
-        TANGENT = vec3(0.0, 0.0, 1.0);
-    }
+    int d;
+    index = 0;
+    bitmask = 0;
+    decode_custom(CUSTOM0, d, index, bitmask);
+    
+    calculate_uv_normal_etc(d, pos, UV, NORMAL, TANGENT, BINORMAL);
 }
-
-#define BIT_00 1
-#define BIT_10 2
-#define BIT_20 4
-#define BIT_01 8
-#define BIT_21 16
-#define BIT_02 32
-#define BIT_12 64
-#define BIT_22 128
 
 float fresnelSchlick(float incidence, float f0, float f90)
 {
@@ -94,63 +49,12 @@ void fragment()
     vec2 uv = UV;
     uv += norm.xy*vec2(2.0, 0.5);
     
-    vec2 quadrant = round(fract(uv));
-    float offset = 0.0;
-    
-    bool ud_offset = false;
-    bool lr_offset = false;
-    bool di_offset = false;
-    int ud_test = 0;
-    int lr_test = 0;
-    int di_test = 0;
-    if (quadrant.x < 0.5 && quadrant.y >= 0.5)
-    {
-        ud_test = BIT_10;
-        lr_test = BIT_01;
-        di_test = BIT_00;
-    }
-    else if (quadrant.x >= 0.5 && quadrant.y >= 0.5)
-    {
-        ud_test = BIT_10;
-        lr_test = BIT_21;
-        di_test = BIT_20;
-    }
-    else if (quadrant.x < 0.5 && quadrant.y <0.5)
-    {
-        ud_test = BIT_12;
-        lr_test = BIT_01;
-        di_test = BIT_02;
-    }
-    else if (quadrant.x >= 0.5 && quadrant.y < 0.5)
-    {
-        ud_test = BIT_12;
-        lr_test = BIT_21;
-        di_test = BIT_22;
-    }
-    if ((bitmask & ud_test) == 0)
-        ud_offset = true;
-    if ((bitmask & lr_test) == 0)
-        lr_offset = true;
-    if (ud_offset || lr_offset || (bitmask & di_test) == 0)
-        di_offset = true;
-    
-    if (ud_offset && lr_offset)
-        offset = 1.0;
-    else if (lr_offset)
-        offset = 2.0;
-    else if (ud_offset)
-        offset = 3.0;
-    else if (di_offset)
-        offset = 4.0;
+    float offset = get_bitmask_offset(uv, bitmask);
     
     vec4 tex = texture(texture_albedo, vec3(uv, float(index) + offset));
     vec3 color = tex.rgb;
     
-    float brightness = dot(color, vec3(1.0/3.0));
-    float color_v = max(0.0, brightness-0.4)*5.0 + 0.5;
-    float color_part = color.b*4.0 + color.g*0.5 - color.r*0.5 + 0.5;
-    float f = clamp(color_part - color_v, 0.0, 1.0);
-    float roughness = 0.05;
+    float roughness = estimate_roughness(color) * 0.05;
     
     ALBEDO = color;
     ROUGHNESS = roughness;
@@ -183,9 +87,6 @@ void fragment()
     vec3 grey = vec3(dot(ALBEDO, vec3(1.0/3.0)));
     ALBEDO = mix(ALBEDO, grey, fresnel);
     tex.a = mix(tex.a, 1.0, fresnel);
-    
-    //BACKLIGHT = vec3(1.0);
-    
     ALPHA = tex.a;
 }
 

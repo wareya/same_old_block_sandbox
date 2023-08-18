@@ -221,8 +221,17 @@ public partial class VoxelGenerator : RefCounted
             if (bounds.HasPoint(coord))
             {
                 var index = coord_to_index(coord);
+                var type = (byte)rng.RandiRange(7, 9);
+                if (rng.RandiRange(0, 10) == 0)
+                    type = 10;
+                if (rng.RandiRange(0, 10) == 0)
+                    type = 11;
+                if (rng.RandiRange(0, 10) == 0)
+                    type = 12;
+                if (rng.RandiRange(0, 10) == 0)
+                    type = 13;
                 if (voxels[index] == 0)
-                    voxels[index] = (byte)rng.RandiRange(7, 9);
+                    voxels[index] = type;
             }
         }
         
