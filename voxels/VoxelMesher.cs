@@ -471,12 +471,12 @@ public partial class VoxelMesher : RefCounted
                                     };
                                     
                                     var solid_extended = false;
-                                    if (d < 4 && is_solid && prev_solid)
+                                    if (d < 4 && is_solid && prev_solid && (prev_cached & (1<<d)) != 0)
                                     {
                                         solid_extended = true;
                                         extend_vert(arrays[0].ColVerts, d, prev_col_i[d], true);
                                     }
-                                    else if(d >= 4 && is_solid && prev_x[x].Item6)
+                                    else if(d >= 4 && is_solid && prev_x[x].Item6 && (prev_x[x].Item2 & (1<<d)) != 0)
                                     {
                                         solid_extended = true;
                                         extend_vert(arrays[0].ColVerts, d, prev_col_x_i[d-4], true);

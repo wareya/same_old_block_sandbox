@@ -12,6 +12,7 @@ var backing_file : FileAccess = null
 func _init():
     randomize()
     world_seed = randi()
+    world_seed = 124
     print(world_seed)
     open_save()
 
