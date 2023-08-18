@@ -108,6 +108,7 @@ public partial class VoxelMesher : RefCounted
         13,
     };
     static HashSet<int> vox_bitmaskless = new HashSet<int> {
+        5,
         6,
         7,
         8,
@@ -127,6 +128,10 @@ public partial class VoxelMesher : RefCounted
         else if(vox_mesh.Contains(vox))
             return 3;
         return 0;
+    }
+    static bool type_is_solid(int type)
+    {
+        return type == 0 || type == 1;
     }
     public int vox_get_type_pub(int vox)
     {
@@ -156,6 +161,7 @@ public partial class VoxelMesher : RefCounted
     }
     
     class Arrays {
+        public List<Vector3> ColVerts = new List<Vector3>();
         public List<Vector3> Verts = new List<Vector3>();
         public List<byte> FaceInfo = new List<byte>();
         public List<int> Indexes = new List<int>();
@@ -266,23 +272,33 @@ public partial class VoxelMesher : RefCounted
         
         foreach (var y in Enumerable.Range(0, chunk_size))
         {
-            var prev_x = new (int, byte, int, int, byte[], (int, int)[])[chunk_size];
+            var prev_x = new (int, byte, int[], byte[], (int, int)[], bool, int[])[chunk_size];
             var prev_x_need_clear = new bool[chunk_size];
             foreach (var i in Enumerable.Range(0, chunk_size))
             {
-                prev_x[i] = ((-1, 0x00, 0, 0, new byte[]{0, 0, 0, 0, 0, 0}, new (int, int)[]{(0,0), (0,0), (0,0), (0,0)}));
+                prev_x[i] = (-1, 0x00, new int[]{0, 0}, new byte[]{0, 0, 0, 0, 0, 0}, new (int, int)[]{(0,0), (0,0), (0,0), (0,0)}, false, new int[]{0, 0});
                 prev_x_need_clear[i] = false;
             }
             
+            var prev_i = new int[]{0, 0, 0, 0};
+            var prev_col_i = new int[]{0, 0, 0, 0};
+            
             foreach (var z in Enumerable.Range(0, chunk_size))
             {
+                var prev_solid = false;
                 var prev_type = -1;
                 var prev_cached = 0;
                 var prev_bitmasks = new byte[]{0, 0, 0, 0, 0, 0};
-                var prev_i_0 = 0;
-                var prev_i_1 = 0;
-                var prev_i_2 = 0;
-                var prev_i_3 = 0;
+                
+                prev_i[0] = 0;
+                prev_i[1] = 0;
+                prev_i[2] = 0;
+                prev_i[3] = 0;
+                
+                prev_col_i[0] = 0;
+                prev_col_i[1] = 0;
+                prev_col_i[2] = 0;
+                prev_col_i[3] = 0;
                 
                 var prev_side_val = new (int, int)[]{(0,0), (0,0), (0,0), (0,0)};
                 
@@ -363,19 +379,22 @@ public partial class VoxelMesher : RefCounted
                     
                     if (cached == 0x00)
                     {
+                        prev_solid = false;
                         prev_type = -1;
                         prev_cached = cached;
                         if (prev_x_need_clear[x])
                         {
                             prev_x[x].Item1 = -1;
+                            prev_x[x].Item6 = false;
                             prev_x_need_clear[x] = false;
                         }
                     }
                     else
                     {
                         var coord = new Vector3(x, y, z) - offs;
-                        var prev_i_4 = prev_x[x].Item3;
-                        var prev_i_5 = prev_x[x].Item4;
+                        var prev_x_i = prev_x[x].Item3;
+                        
+                        var prev_col_x_i = prev_x[x].Item7;
                         
                         if (vox_get_mesh(vox))
                         {
@@ -385,7 +404,7 @@ public partial class VoxelMesher : RefCounted
                             
                             for (int j = 0; j < 4; j++)
                             {
-                                var i_start = arrays[vox_type].Verts.Count();
+                                var i_start = arrays[vox_type].Verts.Count;
                                 
                                 for (int i = 0; i < 4; i++)
                                 {
@@ -397,66 +416,101 @@ public partial class VoxelMesher : RefCounted
                                 arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
                             }
                             
+                            prev_solid = false;
                             prev_side_val = side_val;
                             prev_type = -1;
                             prev_cached = cached;
-                            prev_x[x] = (-1, cached, prev_i_4, prev_i_5, (byte[])prev_bitmasks.Clone(), side_val);
+                            prev_x[x] = (-1, cached, prev_x_i, (byte[])prev_bitmasks.Clone(), side_val, false, prev_col_x_i);
                             prev_x_need_clear[x] = true;
                         }
                         else
                         {
+                            var is_solid = type_is_solid(vox_type);
+                            
                             foreach (var d in Enumerable.Range(0, 6))
                             {
                                 var prev_bitmask = prev_bitmasks[d];
-                                var prev_x_bitmask = prev_x[x].Item5[d];
+                                var prev_x_bitmask = prev_x[x].Item4[d];
                                 var bitmask = bitmask_cache[vox_index*6 + d];
                                 prev_bitmasks[d] = bitmask;
                                 var dir = dirs[d];
                                 if ((cached & (1<<d)) != 0)
                                 {
+                                    var extend_vert = (List<Vector3> slice, int d, int base_index, bool is_collision) =>
+                                    {
+                                        int[] f;
+                                        if (!is_collision)
+                                        {
+                                            if (d == 0 || d == 1)
+                                                f = new int[]{2, 3};
+                                            else if (d == 3 || d == 4)
+                                                f = new int[]{1, 3};
+                                            else
+                                                f = new int[]{0, 2};
+                                        }
+                                        // 0 1 2 2 1 3
+                                        // 0 1 2 3 4 5
+                                        // 0 -> 0
+                                        // 1 -> 1, 4
+                                        // 2 -> 2, 3
+                                        // 3 -> 5
+                                        else
+                                        {
+                                            if (d == 0 || d == 1)
+                                                f = new int[]{2, 3, 5};
+                                            else if (d == 3 || d == 4)
+                                                f = new int[]{1, 4, 5};
+                                            else
+                                                f = new int[]{0, 2, 3};
+                                        }
+                                        
+                                        var adder = d < 4 ? new Vector3(1.0f, 0.0f, 0.0f) : new Vector3(0.0f, 0.0f, 1.0f);
+                                        
+                                        foreach (var i in f)
+                                            slice[base_index+i] += adder;
+                                    };
+                                    
+                                    var solid_extended = false;
+                                    if (d < 4 && is_solid && prev_solid)
+                                    {
+                                        solid_extended = true;
+                                        extend_vert(arrays[0].ColVerts, d, prev_col_i[d], true);
+                                    }
+                                    else if(d >= 4 && is_solid && prev_x[x].Item6)
+                                    {
+                                        solid_extended = true;
+                                        extend_vert(arrays[0].ColVerts, d, prev_col_x_i[d-4], true);
+                                    }
+                                    if (is_solid && !solid_extended)
+                                    {
+                                        var i_col_start = arrays[0].ColVerts.Count;
+                                        if (d < 4)
+                                            prev_col_i[d] = i_col_start;
+                                        else
+                                            prev_col_x_i[d-4] = i_col_start;
+                                            
+                                        foreach (var i in new int[]{0, 1, 2, 2, 1, 3})
+                                        {
+                                            var v = vert_table[d*4 + i];
+                                            arrays[0].ColVerts.Add(coord + v);
+                                        }
+                                    }
+                                    
                                     if (d < 4 &&
                                         (prev_cached & (1<<d)) != 0 &&
                                         prev_bitmask == bitmask &&
                                         prev_type == vox &&
-                                        ((d >= 2) ? (prev_side_val[d-2] == side_val[d-2]) : true))
+                                        (d < 2 || (prev_side_val[d-2] == side_val[d-2])))
                                     {
-                                        if (d == 0)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_0+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                            arrays[vox_type].Verts[prev_i_0+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        }
-                                        else if(d == 1)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_1+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                            arrays[vox_type].Verts[prev_i_1+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        }
-                                        else if(d == 2)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_2+0] += new Vector3(1.0f, 0.0f, 0.0f);
-                                            arrays[vox_type].Verts[prev_i_2+2] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        }
-                                        else if(d == 3)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_3+1] += new Vector3(1.0f, 0.0f, 0.0f);
-                                            arrays[vox_type].Verts[prev_i_3+3] += new Vector3(1.0f, 0.0f, 0.0f);
-                                        }
+                                        extend_vert(arrays[vox_type].Verts, d, prev_i[d], false);
                                     }
                                     else if(d >= 4 &&
                                         (prev_x[x].Item2 & (1<<d)) != 0 &&
                                         prev_x_bitmask == bitmask &&
                                         prev_x[x].Item1 == vox &&
-                                        prev_x[x].Item6[d-2] == side_val[d-2])
+                                        prev_x[x].Item5[d-2] == side_val[d-2])
                                     {
-                                        if (d == 4)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_4+1] += new Vector3(0.0f, 0.0f, 1.0f);
-                                            arrays[vox_type].Verts[prev_i_4+3] += new Vector3(0.0f, 0.0f, 1.0f);
-                                        }
-                                        else if (d == 5)
-                                        {
-                                            arrays[vox_type].Verts[prev_i_5+0] += new Vector3(0.0f, 0.0f, 1.0f);
-                                            arrays[vox_type].Verts[prev_i_5+2] += new Vector3(0.0f, 0.0f, 1.0f);
-                                        }
+                                        extend_vert(arrays[vox_type].Verts, d, prev_x_i[d-4], false);
                                     }
                                     else
                                     {
@@ -469,19 +523,12 @@ public partial class VoxelMesher : RefCounted
                                         var side_bottom = (vox_type == 2 && d >= 2) ? side_val[d-2].Item2 : 0;
                                         
                                         prev_bitmasks[d] = bitmask;
-                                        var i_start = arrays[vox_type].Verts.Count();
-                                        if (d == 0)
-                                            prev_i_0 = i_start;
-                                        else if(d == 1)
-                                            prev_i_1 = i_start;
-                                        else if(d == 2)
-                                            prev_i_2 = i_start;
-                                        else if(d == 3)
-                                            prev_i_3 = i_start;
-                                        else if(d == 4)
-                                            prev_i_4 = i_start;
-                                        else if(d == 5)
-                                            prev_i_5 = i_start;
+                                        
+                                        var i_start = arrays[vox_type].Verts.Count;
+                                        if (d < 4)
+                                            prev_i[d] = i_start;
+                                        else
+                                            prev_x_i[d-4] = i_start;
                                         
                                         for (int i = 0; i < 4; i++)
                                         {
@@ -504,10 +551,11 @@ public partial class VoxelMesher : RefCounted
                                 }
                             }
                             
+                            prev_solid = is_solid;
                             prev_side_val = side_val;
                             prev_type = vox;
                             prev_cached = cached;
-                            prev_x[x] = (vox, cached, prev_i_4, prev_i_5, (byte[])prev_bitmasks.Clone(), side_val);
+                            prev_x[x] = (vox, cached, prev_x_i, (byte[])prev_bitmasks.Clone(), side_val, is_solid, prev_col_x_i);
                             prev_x_need_clear[x] = true;
                         }
                     }
@@ -526,6 +574,7 @@ public partial class VoxelMesher : RefCounted
             mesharrays[(int)Mesh.ArrayType.Index] = array.Indexes.ToArray();
             arraysets.Add(mesharrays);
         }
+        arraysets.Add(arrays[0].ColVerts.ToArray());
         
         return arraysets;
     }

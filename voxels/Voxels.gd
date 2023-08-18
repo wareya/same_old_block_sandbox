@@ -147,15 +147,11 @@ func remesh():
     
     VoxelMesher.side_cache = side_cache
     var arrays = VoxelMesher.remesh_get_arrays(chunk_position, neighbor_chunks)
-    var solid_arrays = arrays[0]
-    var atest_arrays = arrays[1]
-    var trans_arrays = arrays[2]
-    var mesh_arrays = arrays[3]
     side_cache = VoxelMesher.side_cache
     
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()
-    remesh_output = [solid_arrays, atest_arrays, trans_arrays, mesh_arrays]
+    remesh_output = arrays
     #print([solid_arrays.size(), atest_arrays.size(), trans_arrays.size()])
     #print([remesh_output[0].size(), remesh_output[1].size(), remesh_output[2].size()])
     remesh_output_mutex.unlock()
@@ -246,31 +242,27 @@ func accept_remesh():
     if remesh_output != []:
         var _start = Time.get_ticks_usec()
         
-        var mesh_collision = []
-        
         var mesh_child = ArrayMesh.new()
         var mesh2_child = ArrayMesh.new()
         
-        var collision_added = [false]
-        var add_arrays = func(mesh, arrays, mat, solid):
+        var add_arrays = func(mesh, arrays, mat):
             if arrays and arrays.size() > 0 and arrays[0].size() > 0:
                 var flags = (Mesh.ARRAY_CUSTOM_RGBA8_UNORM << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
                 mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
                 var id = mesh.get_surface_count() - 1
                 mesh.surface_set_material(id, mat)
-                if solid:
-                    collision_added[0] = true
-                    mesh_collision.push_back(mesh.create_trimesh_shape())
             return mesh
         
         #print("array sizes:")
         #for array in remesh_output:
         #    print(array[0].size())
         
-        add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"), true)
-        add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"), true)
-        add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTransOuter.tres"), false)
-        add_arrays.call(mesh_child, remesh_output[3], preload("res://voxels/VoxMatATest.tres"), false)
+        add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"))
+        add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"))
+        add_arrays.call(mesh_child, remesh_output[2], preload("res://voxels/VoxMatTransOuter.tres"))
+        add_arrays.call(mesh_child, remesh_output[3], preload("res://voxels/VoxMatATest.tres"))
+        var solids = remesh_output.back()
+        #print(solids)
         remesh_output = []
         
         remesh_output_mutex.unlock()
@@ -293,9 +285,14 @@ func accept_remesh():
         while body_child.shape_owner_get_shape_count(0) > 0:
             body_child.shape_owner_remove_shape(0, 0)
         
-        if collision_added[0]:
-            for mesh in mesh_collision:
-                body_child.shape_owner_add_shape(0, mesh)
+        var collision_added = false
+        if solids and solids.size() > 0:
+            var shape = ConcavePolygonShape3D.new()
+            shape.set_faces(solids)
+            body_child.shape_owner_add_shape(0, shape)
+            collision_added = true
+        
+        if collision_added:
             if !body_childed:
                 add_child(body_child)
                 body_child.force_update_transform()

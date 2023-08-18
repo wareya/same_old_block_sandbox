@@ -50,7 +50,6 @@ void fragment()
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2ytg"]
 shader = SubResource("Shader_rcwn0")
-shader_parameter/water_color = Color(0.203922, 0.384314, 0.772549, 0.501961)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)
@@ -202,6 +201,8 @@ update_scale = false
 
 [node name="PlayerInteract" type="RayCast3D" parent="CameraHolder"]
 target_position = Vector3(0, 0, -5)
+debug_shape_custom_color = Color(0, 0, 0, 0)
+debug_shape_thickness = 1
 script = ExtResource("3_7gcw0")
 
 [node name="Control" type="Control" parent="."]
