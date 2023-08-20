@@ -52,7 +52,7 @@ func open_save():
         var y = backing_file.get_64()
         var z = backing_file.get_64()
         var _unused = backing_file.get_64()
-        var c = Vector3(x, y, z)
+        var c = Vector3i(x, y, z)
         f_index_table[c] = backing_file.get_position() - f_chunk_header_bytes
         backing_file.seek(backing_file.get_position() + f_chunk_bytes)
     
@@ -90,7 +90,7 @@ func trigger_save(chunks_to_save : Array):
     
     f_access_mutex.unlock()
 
-func load_chunk_if_in_file(coord : Vector3):
+func load_chunk_if_in_file(coord : Vector3i):
     if save_disabled:
         return null
     f_access_mutex.lock()
@@ -106,7 +106,7 @@ func load_chunk_if_in_file(coord : Vector3):
         f_access_mutex.unlock()
         return null
 
-func load_chunk(coord : Vector3):
+func load_chunk(coord : Vector3i):
     var vox = load_chunk_if_in_file(coord)
     if !vox:
         vox = Voxels.new()
@@ -125,7 +125,7 @@ func _ready() -> void:
     for y in range(-range_v, range_v+1):
         for z in range(-_spawn_range, _spawn_range+1):
             for x in range(-_spawn_range, _spawn_range+1):
-                var c = Vector3(x, y, z)*Voxels.chunk_size
+                var c = Vector3i(x, y, z)*Voxels.chunk_size
                 
                 var vox = load_chunk(c)
                 all_chunks[c] = vox
@@ -160,7 +160,7 @@ func place_player():
         land_height = -1
         var found_air = false
         for y in range(Voxels.chunk_size*1.5 - 2, -Voxels.chunk_size, -1):
-            var vox = get_block(Vector3(x, y, z))
+            var vox = get_block(Vector3i(x, y, z))
             var type = Voxels.vox_get_type(vox)
             if type == 2:
                 break
@@ -186,8 +186,17 @@ func place_player():
     player.cached_position = player.global_position
     print("added player at ", player.global_position)
 
-static func get_chunk_coord(coord):
-    var chunk_coord = ((coord + Vector3.ONE*0.5) / Voxels.chunk_size).round() * Voxels.chunk_size
+static func posmodvi(a : Vector3i, b : Vector3i):
+    a.x = posmod(a.x, b.x)
+    a.y = posmod(a.y, b.y)
+    a.z = posmod(a.z, b.z)
+    return a
+
+static func get_chunk_coord(coord) -> Vector3i:
+    if coord is Vector3:
+        coord = Vector3i((coord).round())
+    var leftover = posmodvi(coord + Voxels.chunk_vec3i/2, Voxels.chunk_vec3i)
+    var chunk_coord = coord - leftover + Voxels.chunk_vec3i/2
     return chunk_coord
 
 var dirty_chunk_mutex = Mutex.new()
@@ -199,9 +208,9 @@ func dirtify_world():
         player.refresh_probe()
 
 func get_block_with_origin(coord : Vector3) -> int:
-    return get_block(coord + world_origin)
+    return get_block(Vector3i(coord.round()) + world_origin)
 
-func get_block(coord : Vector3) -> int:
+func get_block(coord : Vector3i) -> int:
     var chunk_coord = World.get_chunk_coord(coord)
     if chunk_coord in all_chunks:
         var chunk = all_chunks[chunk_coord]
@@ -209,9 +218,9 @@ func get_block(coord : Vector3) -> int:
     return 0
 
 func set_block_with_origin(coord : Vector3, id : int):
-    set_block(coord + world_origin, id)
+    set_block(Vector3i(coord.round()) + world_origin, id)
 
-func set_block(coord : Vector3, id : int):
+func set_block(coord : Vector3i, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
     if chunk_coord in chunks_loaded:
         var chunk = chunks_loaded[chunk_coord]
@@ -222,14 +231,14 @@ func set_block(coord : Vector3, id : int):
         dirty_chunks.push_back(chunk)
         dirty_chunk_mutex.unlock()
             
-        var c = coord.round() - chunk_coord + Vector3.ONE*Voxels.chunk_size/2
+        var c = coord - chunk_coord + Vector3i.ONE*Voxels.chunk_size/2
         if (c.x == 0 or c.y == 0 or c.z == 0
             or c.x+1 == Voxels.chunk_size or c.y+1 == Voxels.chunk_size or c.z+1 == Voxels.chunk_size):
             var neighbor_chunk_coords = {}
             for y in range(-1, 2):
                 for z in range(-1, 2):
                     for x in range(-1, 2):
-                        var c2 = Vector3(x, y, z) + coord
+                        var c2 = Vector3i(x, y, z) + coord
                         var chunk2_coord = World.get_chunk_coord(c2)
                         chunk_table_mutex.lock()
                         if chunk2_coord in all_chunks:
@@ -355,12 +364,13 @@ func dynamic_world_loop():
 # 768 = 24 chunk distance
 # 1024 = 32 chunk distance
 
+#var range_h = 32/Voxels.chunk_size/2
 var range_h = 512/Voxels.chunk_size/2
 #var range_v = 64/Voxels.chunk_size/2
 var range_v = 128/Voxels.chunk_size/2
 
 var _found_unloadable_chunks = []
-var _find_chunks_prev_player_chunk_2 = Vector3(0.1, 0.1, 0.1)
+var _find_chunks_prev_player_chunk_2 = null
 var unload_threshold = 1.5 * Voxels.chunk_size
 func dynamically_unload_world(player_chunk):
     if _find_chunks_prev_player_chunk_2 != player_chunk:
@@ -417,7 +427,7 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
                     var c = Vector3(x, y, z) * Voxels.chunk_size
                     var c2 = c - player_chunk*Vector3(0, 1, 0)
                     
-                    var c_global = c + player_chunk*Vector3(1, 0, 1)
+                    var c_global = Vector3i(c + player_chunk*Vector3(1, 0, 1))
                     
                     if c_global in chunks_loaded:
                         continue
@@ -442,10 +452,10 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
     
     return _find_chunks_unloaded_coords
 
-var world_origin = Vector3()
+var world_origin = Vector3i()
 
 func apply_chunks_offset():
-    var player_chunk_coord = get_player_chunk_coord() * Vector3(1.0, 0.0, 1.0)
+    var player_chunk_coord = get_player_chunk_coord() * Vector3i(1, 0, 1)
     # FIXME: add some kind of hysterisis, and also make it less granular, so it only changes every dozen or hundred chunks or w/e
     # BUT: for now, leave it as-is, so that world origin bugs are easier to identify early
     if player_chunk_coord != world_origin:
@@ -453,8 +463,8 @@ func apply_chunks_offset():
         world_origin = player_chunk_coord
         print("new world offset: ", world_origin)
         var player = DummySingleton.get_tree().get_first_node_in_group("Player")
-        player.global_position -= diff
-        player.cached_position -= diff
+        player.global_position -= Vector3(diff)
+        player.cached_position -= Vector3(diff)
         player.force_update_transform()
         
         chunk_table_mutex.lock()
@@ -470,7 +480,7 @@ func get_player_chunk_coord(no_y : bool = false):
     var player_chunk = World.get_chunk_coord(player.cached_position)
     player_chunk += world_origin
     if no_y:
-        player_chunk.y = 0.0
+        player_chunk.y = 0
     return player_chunk
 
 func get_player_facing_dir():
@@ -506,7 +516,7 @@ func dynamically_load_world(player_chunk, facing_dir):
                     continue
                 for z in range(-1, 2):
                     for x in range(-1, 2):
-                        var c2_coord = Vector3(x, y, z) * Voxels.chunk_size + c_coord
+                        var c2_coord = Vector3i(x, y, z) * Voxels.chunk_size + c_coord
                         if not c2_coord in all_chunks:
                             var vox2 = load_chunk(c2_coord)
                             all_chunks[c2_coord] = vox2
@@ -552,7 +562,7 @@ func add_and_load_all(chunks):
 
 func initial_add_vox(vox : Node3D, coord : Vector3):
     add_child(vox)
-    vox.global_position = coord - world_origin
+    vox.global_position = coord - Vector3(world_origin)
     
     vox.force_update_transform()
     vox.accept_remesh()

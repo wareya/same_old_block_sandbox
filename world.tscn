@@ -111,6 +111,7 @@ environment = SubResource("Environment_3qx6c")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 2.36717, -1.64375)
+light_angular_distance = 0.5
 shadow_enabled = true
 
 [node name="FPS" type="Label" parent="."]

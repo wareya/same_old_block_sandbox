@@ -282,9 +282,9 @@ func _process(delta: float) -> void:
     #handle_stick_input(delta)
     
     if Input.is_action_just_pressed("farlands_finder"):
-        global_position.x += 100000.0
+        global_position.x += 8388608.0
     if Input.is_action_just_pressed("farlands_finder_z"):
-        global_position.z += 100000.0
+        global_position.z += 8388608.0
     
     var allow_stair_snapping = started_process_on_floor
     if Input.is_action_pressed("ui_accept") and (started_process_on_floor or in_water):
@@ -387,7 +387,7 @@ func check_chunk(start_pos, start_vel):
         
         return null
     else:
-        var d = Voxels.VoxelGenerator.pub_true_height_at_global(world.base_noise, global_position.round() + world.world_origin)
+        var d = Voxels.VoxelGenerator.pub_true_height_at_global(world.base_noise, Vector3i(global_position.round()) + world.world_origin)
         $DebugLabel.text = "%s\n%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
         var block_in = chunk.get_block_with_origin(global_position + Vector3.UP*0.5)
         var head_block_in = chunk.get_block_with_origin(global_position + Vector3.UP*1.5)

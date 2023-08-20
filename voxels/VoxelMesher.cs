@@ -6,15 +6,23 @@ using System.Runtime.CompilerServices;
 
 public partial class VoxelMesher : RefCounted
 {
-    static Vector3 get_chunk_coord(Vector3 coord)
+    static Vector3I posmodvi(Vector3I a, Vector3I b)
     {
-        var chunk_coord = ((coord + Vector3.One*0.5f) / VoxelGenerator.chunk_size).Round() * VoxelGenerator.chunk_size;
+        a.X = (a.X%b.X + b.X)%b.X;
+        a.Y = (a.Y%b.Y + b.Y)%b.Y;
+        a.Z = (a.Z%b.Z + b.Z)%b.Z;
+        return a;
+    }
+    static Vector3I get_chunk_coord(Vector3I coord)
+    {
+        var leftover = posmodvi(coord + VoxelGenerator.chunk_vec3i/2, VoxelGenerator.chunk_vec3i);
+        var chunk_coord = coord - leftover + VoxelGenerator.chunk_vec3i/2;
         return chunk_coord;
     }
     
-    static Vector3[] dirs = new Vector3[6]{Vector3.Up, Vector3.Down, Vector3.Forward, Vector3.Back, Vector3.Left, Vector3.Right};
-    static Vector3[] right_dirs = new Vector3[6]{Vector3.Right, Vector3.Left, Vector3.Left, Vector3.Right, Vector3.Back, Vector3.Forward};
-    static Vector3[] up_dirs  = new Vector3[6]{Vector3.Forward, Vector3.Back, Vector3.Up, Vector3.Up, Vector3.Up, Vector3.Up};
+    static Vector3I[] dirs = new Vector3I[6]{Vector3I.Up, Vector3I.Down, Vector3I.Forward, Vector3I.Back, Vector3I.Left, Vector3I.Right};
+    static Vector3I[] right_dirs = new Vector3I[6]{Vector3I.Right, Vector3I.Left, Vector3I.Left, Vector3I.Right, Vector3I.Back, Vector3I.Forward};
+    static Vector3I[] up_dirs  = new Vector3I[6]{Vector3I.Forward, Vector3I.Back, Vector3I.Up, Vector3I.Up, Vector3I.Up, Vector3I.Up};
     static Vector3[] face_verts = new Vector3[4]
     {
         new Vector3(0.5f, 0.5f, -0.5f),
@@ -152,9 +160,9 @@ public partial class VoxelMesher : RefCounted
     
     public byte[] side_cache;
     
-    static int calc_index(Vector3 coord)
+    static int calc_index(Vector3I coord)
     {
-        return (int)(
+        return (
             coord.Y*VoxelGenerator.chunk_size*VoxelGenerator.chunk_size +
             coord.Z*VoxelGenerator.chunk_size +
             coord.X );
@@ -167,7 +175,7 @@ public partial class VoxelMesher : RefCounted
         public List<int> Indexes = new List<int>();
     };
     
-    Godot.Collections.Array remesh_get_arrays(Vector3 chunk_position, Godot.Collections.Dictionary neighbor_chunks)
+    Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
     {
         int chunk_size = VoxelGenerator.chunk_size;
         var bounds = VoxelGenerator.bounds;
@@ -180,13 +188,13 @@ public partial class VoxelMesher : RefCounted
             return type == target_type;
         };
         
-        Dictionary<Vector3, byte[]> neighbors = new Dictionary<Vector3, byte[]>();
+        Dictionary<Vector3I, byte[]> neighbors = new Dictionary<Vector3I, byte[]>();
         foreach (var k in neighbor_chunks.Keys)
-            neighbors[(Vector3)k] = (byte[])neighbor_chunks[k];
+            neighbors[(Vector3I)k] = (byte[])neighbor_chunks[k];
         
         byte[] voxels = neighbors[chunk_position];
         
-        var get_voxel = int (Vector3 global_coord) =>
+        var get_voxel = int (Vector3I global_coord) =>
         {
             var local_coord = global_coord - chunk_position;
             if (bounds.HasPoint(local_coord))
@@ -194,11 +202,15 @@ public partial class VoxelMesher : RefCounted
                 var neighbor_index = calc_index(local_coord);
                 return voxels[neighbor_index];
             }
-            var chunk_coord = get_chunk_coord(global_coord - Vector3.One*chunk_size/2);
+            var chunk_coord = get_chunk_coord(global_coord - Vector3I.One*chunk_size/2);
             if (neighbors.ContainsKey(chunk_coord))
             {
                 var neighbor_voxels = neighbors[chunk_coord];
                 var neighbor_coord = global_coord - chunk_coord;
+                //GD.Print("---");
+                //GD.Print(global_coord);
+                //GD.Print(chunk_coord);
+                //GD.Print(neighbor_coord);
                 var index = calc_index(neighbor_coord);
                 return neighbor_voxels[index];
             }
@@ -208,7 +220,7 @@ public partial class VoxelMesher : RefCounted
         var info_max = 16;
         var static_water_height = 14;
         
-        var calc_water_info = (byte, (int, int)[]) (Vector3 coord) =>
+        var calc_water_info = (byte, (int, int)[]) (Vector3I coord) =>
         {
             var vox = get_voxel(coord);
             var vox_type = vox_get_type(vox);
@@ -218,10 +230,10 @@ public partial class VoxelMesher : RefCounted
             if (vox_type != 2)
                 return ret;
             
-            var vox2 = get_voxel(coord + Vector3.Up);
+            var vox2 = get_voxel(coord + Vector3I.Up);
             var vox2_type = vox_get_type(vox2);
             
-            var vox_down = get_voxel(coord + Vector3.Down);
+            var vox_down = get_voxel(coord + Vector3I.Down);
             var vox_down_type = vox_get_type(vox_down);
             
             var core_height = info_max;
@@ -237,10 +249,10 @@ public partial class VoxelMesher : RefCounted
                 var vox_side = get_voxel(beside_coord);
                 var vox_side_type = vox_get_type(vox_side);
                 
-                var vox_side_down = get_voxel(beside_coord + Vector3.Down);
+                var vox_side_down = get_voxel(beside_coord + Vector3I.Down);
                 var vox_side_down_type = vox_get_type(vox_side_down);
                 
-                var vox_side_up = get_voxel(beside_coord + Vector3.Up);
+                var vox_side_up = get_voxel(beside_coord + Vector3I.Up);
                 var vox_side_up_type = vox_get_type(vox_side_up);
                 
                 int bottom = 0;
@@ -304,7 +316,7 @@ public partial class VoxelMesher : RefCounted
                 
                 foreach (var x in Enumerable.Range(0, chunk_size))
                 {
-                    var local_coord = new Vector3(x, y, z);
+                    var local_coord = new Vector3I(x, y, z);
                     var vox_index = calc_index(local_coord);
                     byte cached = side_cache[vox_index];
                     
@@ -331,7 +343,7 @@ public partial class VoxelMesher : RefCounted
                                 var dir = dirs[d];
                                 if (!vox_atest)
                                 {
-                                    var neighbor_coord = new Vector3(x, y, z) + dir;
+                                    var neighbor_coord = new Vector3I(x, y, z) + dir;
                                     var neighbor = get_voxel(neighbor_coord + chunk_position);
                                     var xparent_condition = vox_xparent && neighbor != 0 && d != 0 && (d == 1 || (side_val[d-2].Item2 >= 0));
                                     if (voxel_same_type(neighbor, vox_type) || xparent_condition)
@@ -350,7 +362,7 @@ public partial class VoxelMesher : RefCounted
                                         {
                                             if (_y == 0 && _x == 0)
                                                 continue;
-                                            var next_coord = new Vector3(x, y, z) + _y*up_dir + _x*right_dir;
+                                            var next_coord = new Vector3I(x, y, z) + _y*up_dir + _x*right_dir;
                                             var occlude_coord = next_coord + dir;
                                             var bit_is_same = 0;
                                             

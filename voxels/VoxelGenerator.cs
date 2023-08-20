@@ -63,11 +63,11 @@ public partial class VoxelGenerator : RefCounted
         
         return ((int)height, (int)rock_offset);
     }
-    public int pub_height_at_global(Noise noiser, Vector3 global_coord)
+    public int pub_height_at_global(Noise noiser, Vector3I global_coord)
     {
         return height_at_global(noiser, global_coord.X, global_coord.Z).Item1;
     }
-    static float erosion_strength_at_global(Noise noiser, Vector3 global_coord)
+    static float erosion_strength_at_global(Noise noiser, Vector3I global_coord)
     {
         var erosion_info_freq = 0.1f;
         var min_strength = 0.0f;
@@ -89,16 +89,16 @@ public partial class VoxelGenerator : RefCounted
     }
     static FastNoiseLite erosion_noise = buh();
     static bool erosion_seed_set = false;
-    static float get_erosion(Vector3 global_coord, float strength)
+    static float get_erosion(Vector3I global_coord, float strength)
     {
         var out_scale = Mathf.Clamp(1.0f + global_coord.Y/16.0f, 0.0f, 1.0f);
-        var ret = Mathf.Min(0.0f, erosion_noise.GetNoise3Dv(global_coord.Round()));
+        var ret = Mathf.Min(0.0f, erosion_noise.GetNoise3D(global_coord.X, global_coord.Y, global_coord.Z));
         return Mathf.Round(ret*Mathf.Abs(ret)*strength*out_scale);
     }
     // WARNING: for performance reasons, this does a coarse search.
     // its purpose is to find a y value that's solid but has air above it, and is close to the surface.
     // it is not 100% guaranteed to be exposed to the sky.
-    public static (int, int) true_height_at_global(Noise noiser, Vector3 global_coord)
+    public static (int, int) true_height_at_global(Noise noiser, Vector3I global_coord)
     {
         var erosion_strength = erosion_strength_at_global(noiser, global_coord);
         var (h, rock) = height_at_global(noiser, global_coord.X, global_coord.Z);
@@ -109,7 +109,7 @@ public partial class VoxelGenerator : RefCounted
         {
             y -= 4;
             return_h = y;
-            erosion = get_erosion(new Vector3(global_coord.X, y, global_coord.Z), erosion_strength);
+            erosion = get_erosion(new Vector3I(global_coord.X, y, global_coord.Z), erosion_strength);
             if (h - y + erosion >= 0.0f)
                 break;
         }
@@ -117,7 +117,7 @@ public partial class VoxelGenerator : RefCounted
         while (y < end)
         {
             y += 1;
-            var new_erosion = get_erosion(new Vector3(global_coord.X, y, global_coord.Z), erosion_strength);
+            var new_erosion = get_erosion(new Vector3I(global_coord.X, y, global_coord.Z), erosion_strength);
             if (h - y + new_erosion < 0.0f)
                 break;
             return_h = y;
@@ -126,21 +126,22 @@ public partial class VoxelGenerator : RefCounted
         rock = rock + (h - return_h) + (int)(erosion*0.9);
         return (return_h, rock);
     }
-    public int pub_true_height_at_global(Noise noiser, Vector3 global_coord)
+    public int pub_true_height_at_global(Noise noiser, Vector3I global_coord)
     {
         return true_height_at_global(noiser, global_coord).Item1;
     }
     public static int chunk_size = 16;
+    public static Vector3I chunk_vec3i = new Vector3I(chunk_size, chunk_size, chunk_size);
     public static Aabb bounds = new Aabb(new Vector3(), Vector3.One*(chunk_size-1));
-    static List<(Vector3, int, uint)> get_tree_coords(Vector3 chunk_position, Noise noiser, int min, int max, int buffer, bool dirt_only = true)
+    static List<(Vector3I, int, uint)> get_tree_coords(Vector3I chunk_position, Noise noiser, int min, int max, int buffer, bool dirt_only = true)
     {
         var rng = new RandomNumberGenerator();
-        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
+        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
         var tree_count = rng.RandiRange(min, max);
         
-        var offset = -Vector3.One*chunk_size/2 + chunk_position;
+        var offset = -Vector3I.One*chunk_size/2 + chunk_position;
         
-        var trees = new List<(Vector3, int, uint)>();
+        var trees = new List<(Vector3I, int, uint)>();
         foreach (var _ in Enumerable.Range(0, tree_count))
         {
             var x = rng.RandiRange(buffer, chunk_size-1-buffer);
@@ -148,47 +149,49 @@ public partial class VoxelGenerator : RefCounted
             var tall = rng.RandiRange(4, 6);
             var grunge = rng.Randi();
             
-            var (height, rock_part) = true_height_at_global(noiser, new Vector3(x, 0, z) + offset);
+            var (height, rock_part) = true_height_at_global(noiser, new Vector3I(x, 0, z) + offset);
             var is_rock = rock_part > 1.0f;
             
             if (height >= 0 && !is_rock)
             {
-                var c_3d = new Vector3(x, height+1 - chunk_position.Y + chunk_size/2, z);
+                var c_3d = new Vector3I(x, height+1 - chunk_position.Y + chunk_size/2, z);
                 trees.Add((c_3d, tall, grunge));
             }
         }
         
         return trees;
     }
-    static List<Vector3> get_grass_coords(Vector3 chunk_position, Noise noiser, int min, int max, bool dirt_only = true)
+    static List<Vector3I> get_grass_coords(Vector3I chunk_position, Noise noiser, int min, int max, bool dirt_only = true)
     {
         var rng = new RandomNumberGenerator();
-        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
+        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
         var item_count = rng.RandiRange(min, max);
         
-        var offset = -Vector3.One*chunk_size/2 + chunk_position;
+        var offset = -Vector3I.One*chunk_size/2 + chunk_position;
         
-        var coords = new List<Vector3>();
+        var coords = new List<Vector3I>();
         foreach (var _ in Enumerable.Range(0, item_count))
         {
             var x = rng.RandiRange(0, chunk_size-1);
             var z = rng.RandiRange(0, chunk_size-1);
             
-            var (height, rock_part) = true_height_at_global(noiser, new Vector3(x, 0, z) + offset);
+            var (height, rock_part) = true_height_at_global(noiser, new Vector3I(x, 0, z) + offset);
             var is_rock = rock_part > 1.0f;
             
             if (height >= 0 && !is_rock)
-                coords.Add(new Vector3(x, height+1 - chunk_position.Y + chunk_size/2, z));
+                coords.Add(new Vector3I(x, height+1 - chunk_position.Y + chunk_size/2, z));
         }
         
         return coords;
     }
-    static int coord_to_index(Vector3 coord)
+    static int coord_to_index(Vector3I coord)
     {
-        return ((int)(coord.Y))*chunk_size*chunk_size + ((int)(coord.Z))*chunk_size + ((int)coord.X);
+        return coord.Y*chunk_size*chunk_size + coord.Z*chunk_size + coord.X;
     }
-    public byte[] _Generate(Noise noiser, Vector3 chunk_position, Vector3 offset, Vector2 offset_2d)
+    public byte[] _Generate(Noise noiser, Vector3I chunk_position, Vector3I offset)
     {
+        var offset_2d = new Vector2I(offset.X, offset.Z);
+        
         if (!erosion_seed_set)
         {
             erosion_noise.Seed = ((FastNoiseLite)noiser).Seed+2;
@@ -200,13 +203,13 @@ public partial class VoxelGenerator : RefCounted
         {
             foreach (var x in Enumerable.Range(0, chunk_size))
             {
-                var c_2d = new Vector2(x, z) + offset_2d;
+                var c_2d = new Vector2I(x, z) + offset_2d;
                 var (height, rock_offset) = height_at_global(noiser, c_2d.X, c_2d.Y);
                 
-                var h_i = coord_to_index(new Vector3(x, 0, z));
+                var h_i = coord_to_index(new Vector3I(x, 0, z));
                 
-                var erosion_strength = erosion_strength_at_global(noiser, new Vector3(x+offset.X, 0, z+offset.Z));
-                var erosion = get_erosion(new Vector3(x, 0, z) + offset, erosion_strength);
+                var erosion_strength = erosion_strength_at_global(noiser, new Vector3I(x+offset.X, 0, z+offset.Z));
+                var erosion = get_erosion(new Vector3I(x, 0, z) + offset, erosion_strength);
                 
                 var max_y = Math.Clamp((int)(height - offset.Y) + 1, 0, chunk_size);
                 if (offset.Y < 0)
@@ -214,13 +217,13 @@ public partial class VoxelGenerator : RefCounted
                 
                 foreach (var y in Enumerable.Range(0, max_y))
                 {
-                    var c = new Vector3(x, y, z) + offset;
+                    var c = new Vector3I(x, y, z) + offset;
         
                     var base_noise = height - c.Y;
                     var noise_above = height - c.Y - 1.0f;
                     
                     var noise = base_noise + erosion;
-                    erosion = get_erosion(c + Vector3.Up, erosion_strength);
+                    erosion = get_erosion(c + Vector3I.Up, erosion_strength);
                     noise_above += erosion;
                     
                     var rock_noise = base_noise + rock_offset + (int)(erosion*0.9);
@@ -272,7 +275,7 @@ public partial class VoxelGenerator : RefCounted
                             limit += 1.0f;
                         if (x*x + z*z > limit)
                             continue;
-                        var c2 = coord + new Vector3(x, y, z);
+                        var c2 = coord + new Vector3I(x, y, z);
                         if (bounds.HasPoint(c2))
                         {
                             var index = coord_to_index(c2);
@@ -283,7 +286,7 @@ public partial class VoxelGenerator : RefCounted
             }
             foreach (var y in Enumerable.Range(0, tall))
             {
-                var c2 = coord + new Vector3(0, y, 0);
+                var c2 = coord + new Vector3I(0, y, 0);
                 if (bounds.HasPoint(c2))
                 {
                     var index = coord_to_index(c2);
@@ -295,7 +298,7 @@ public partial class VoxelGenerator : RefCounted
         var grass = get_grass_coords(chunk_position, noiser, 48, 96);
         
         var rng = new RandomNumberGenerator();
-        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3(1.0f, 0.0f, 1.0f));
+        rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
         
         foreach (var coord in grass)
         {

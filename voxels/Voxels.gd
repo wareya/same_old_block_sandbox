@@ -2,7 +2,8 @@ extends Node3D
 class_name Voxels
 
 #static var chunk_size = 16
-static var chunk_size = 16
+static var chunk_size : int = 16
+static var chunk_vec3i : Vector3i = Vector3i(chunk_size, chunk_size, chunk_size)
 static var bounds : AABB = AABB(Vector3(), Vector3.ONE*(chunk_size-1))
 
 # top, bottom, side
@@ -50,16 +51,11 @@ func generate():
     bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
     bitmask_cache.fill(0x0)
     
-    var offset = -Vector3.ONE*chunk_size/2 + chunk_position
-    var offset_2d = Vector2(offset.x, offset.z)
+    var offset = -Vector3i.ONE*chunk_size/2 + chunk_position
+    var offset_2d = Vector2i(offset.x, offset.z)
     var noiser = world.base_noise
     
-    #voxels.resize(chunk_size*chunk_size*chunk_size)
-    #Voxels._generate_internal(noiser, voxels, chunk_position, offset, offset_2d)
-    
-    voxels = VoxelGenerator._Generate(noiser, chunk_position, offset, offset_2d)
-    
-    #print("gen time: ", (Time.get_ticks_usec() - _start)/1000.0)
+    voxels = VoxelGenerator._Generate(noiser, chunk_position, offset)
 
 
 var meshinst_child = MeshInstance3D.new()
@@ -79,7 +75,7 @@ func _notification(what: int) -> void:
             body_child.free()
             body_child = null
 
-var chunk_position = Vector3()
+var chunk_position : Vector3i = Vector3i()
 func do_generation(pos : Vector3):
     chunk_position = pos
     generate()
@@ -130,7 +126,7 @@ func remesh():
     for y in range(-1, 2):
         for z in range(-1, 2):
             for x in range(-1, 2):
-                var c = Vector3(x, y, z)*chunk_size + chunk_position
+                var c = Vector3i(x, y, z)*chunk_size + chunk_position
                 if c in world.all_chunks:
                     neighbor_chunks[c] = world.all_chunks[c].voxels
     world.chunk_table_mutex.unlock()
@@ -162,12 +158,11 @@ var block_command_mutex = Mutex.new()
 var block_commands = []
 
 func get_block_with_origin(coord : Vector3) -> int:
-    return get_block(coord + world.world_origin)
+    return get_block(Vector3i(coord.round()) + world.world_origin)
 
-func get_block(coord : Vector3) -> int:
-    coord += Vector3.ONE*chunk_size/2
-    coord -= chunk_position
-    coord = coord.round()
+func get_block(coord : Vector3i) -> int:
+    coord += Vector3i.ONE*chunk_size/2
+    coord -= Vector3i(chunk_position)
     if bounds.has_point(coord):
         var index = Voxels.coord_to_index(coord)
         return voxels[index]
@@ -175,12 +170,11 @@ func get_block(coord : Vector3) -> int:
     return 0
 
 func set_block_with_origin(coord : Vector3, id : int):
-    set_block(coord + world.world_origin, id)
+    set_block(Vector3i(coord.round()) + world.world_origin, id)
 
-func set_block(coord : Vector3, id : int):
-    coord += Vector3.ONE*chunk_size/2
-    coord -= chunk_position
-    coord = coord.round()
+func set_block(coord : Vector3i, id : int):
+    coord += Vector3i.ONE*chunk_size/2
+    coord -= Vector3i(chunk_position)
     
     # if the id is real, change the voxel
     if bounds.has_point(coord) and id >= 0:
