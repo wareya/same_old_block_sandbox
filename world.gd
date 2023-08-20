@@ -2,11 +2,9 @@ extends Node3D
 class_name World
 
 
-# absolute world limit: between 8000000.0 and 8400000.0 away from origin
-# (that's how long away from origin it takes to start crashing)
-# effective world limit: around 50k away from the origin
-# (camera/world starts vibrating)
-# FIXME: horizontal world limits are not actually currently implemented
+# absolute world limit: 8,388,608 units away from origin
+# (that's how long away from origin it takes to start crashing, because floats can no longer store ints)
+# FIXME: this horizontal world limit is not actually currently implemented
 var chunk_table_mutex = Mutex.new()
 var chunks_unloaded = {}
 var chunks_loaded = {}
@@ -200,12 +198,18 @@ func dirtify_world():
     if player:
         player.refresh_probe()
 
+func get_block_with_origin(coord : Vector3) -> int:
+    return get_block(coord + world_origin)
+
 func get_block(coord : Vector3) -> int:
     var chunk_coord = World.get_chunk_coord(coord)
     if chunk_coord in all_chunks:
         var chunk = all_chunks[chunk_coord]
         return chunk.get_block(coord)
     return 0
+
+func set_block_with_origin(coord : Vector3, id : int):
+    set_block(coord + world_origin, id)
 
 func set_block(coord : Vector3, id : int):
     var chunk_coord = World.get_chunk_coord(coord)
@@ -234,7 +238,6 @@ func set_block(coord : Vector3, id : int):
             
             if chunk_coord in neighbor_chunk_coords:
                 neighbor_chunk_coords.erase(chunk_coord)
-            
             
             dirty_chunk_mutex.lock()
             for neighbor_chunk in neighbor_chunk_coords.values():
@@ -268,6 +271,8 @@ func _process(delta : float) -> void:
     if world_work_num_unloaded == 0 and time_alive >= 0.0:
         print("fully loaded!", time_alive)
         time_alive = -100.0
+    
+    apply_chunks_offset()
     
     
 var remesh_work_thread = Thread.new()
@@ -437,9 +442,33 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
     
     return _find_chunks_unloaded_coords
 
+var world_origin = Vector3()
+
+func apply_chunks_offset():
+    var player_chunk_coord = get_player_chunk_coord() * Vector3(1.0, 0.0, 1.0)
+    # FIXME: add some kind of hysterisis, and also make it less granular, so it only changes every dozen or hundred chunks or w/e
+    # BUT: for now, leave it as-is, so that world origin bugs are easier to identify early
+    if player_chunk_coord != world_origin:
+        var diff = player_chunk_coord - world_origin
+        world_origin = player_chunk_coord
+        print("new world offset: ", world_origin)
+        var player = DummySingleton.get_tree().get_first_node_in_group("Player")
+        player.global_position -= diff
+        player.cached_position -= diff
+        player.force_update_transform()
+        
+        chunk_table_mutex.lock()
+        for chunk_coord in chunks_loaded:
+            var chunk = chunks_loaded[chunk_coord]
+            if chunk.is_inside_tree():
+                chunk.global_position = chunk.chunk_position - world_origin
+                chunk.inform_moved()
+        chunk_table_mutex.unlock()
+
 func get_player_chunk_coord(no_y : bool = false):
     var player = DummySingleton.get_tree().get_first_node_in_group("Player")
     var player_chunk = World.get_chunk_coord(player.cached_position)
+    player_chunk += world_origin
     if no_y:
         player_chunk.y = 0.0
     return player_chunk
@@ -448,7 +477,6 @@ func get_player_facing_dir():
     var player = DummySingleton.get_tree().get_first_node_in_group("Player")
     return player.cached_facing_dir
 
-        
 func dynamically_load_world(player_chunk, facing_dir):
     var unloaded_coords = find_chunk_load_queue(player_chunk, facing_dir)
     if unloaded_coords.size() > 0:
@@ -496,10 +524,13 @@ func add_and_load_all(chunks):
         return
     var _start = Time.get_ticks_usec()
     for chunk in chunks:
-        if chunk.size() == 2:
-            initial_add_vox(chunk[0], chunk[1])
-        else:
-            add_child(chunk[0])
+        if is_instance_valid(chunk[0]):
+            if chunk.size() == 2:
+                initial_add_vox(chunk[0], chunk[1])
+            else:
+                add_child(chunk[0])
+                chunk[0].global_position = chunk[0].chunk_position - world_origin
+                chunk[0].inform_moved()
     
     var just_chunks = []
     
@@ -521,7 +552,7 @@ func add_and_load_all(chunks):
 
 func initial_add_vox(vox : Node3D, coord : Vector3):
     add_child(vox)
-    vox.global_position = coord
+    vox.global_position = coord - world_origin
     
     vox.force_update_transform()
     vox.accept_remesh()

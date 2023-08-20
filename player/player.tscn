@@ -50,7 +50,7 @@ void fragment()
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2ytg"]
 shader = SubResource("Shader_rcwn0")
-shader_parameter/water_color = null
+shader_parameter/water_color = Color(0.254902, 0.47451, 0.878431, 0.521569)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)
@@ -112,17 +112,15 @@ step_height = 0.6
 
 [node name="OverlayLayer" type="CanvasLayer" parent="."]
 layer = -64
-visible = false
 
 [node name="WaterOverlay" type="ColorRect" parent="OverlayLayer"]
-visible = false
 material = SubResource("ShaderMaterial_e2ytg")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.137255, 0.356863, 0.764706, 0.266667)
+color = Color(0.152941, 0.368627, 0.772549, 0.266667)
 
 [node name="OmniLight3D" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.638, 0)

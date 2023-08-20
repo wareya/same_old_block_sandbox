@@ -274,15 +274,17 @@ func probe_probable_step_height():
         var lowest = center_offset - down_distance
         return clamp(highest/2.0 + lowest/2.0, 0.0, step_height)
 
+var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
+
 func _process(delta: float) -> void:
     started_process_on_floor = is_on_floor()
     # for controller camera control
     #handle_stick_input(delta)
     
-    #if Input.is_action_just_pressed("farlands_finder"):
-    #    global_position.x += 30000.0
-    #if Input.is_action_just_pressed("farlands_finder_z"):
-    #    global_position.z += 30000.0
+    if Input.is_action_just_pressed("farlands_finder"):
+        global_position.x += 100000.0
+    if Input.is_action_just_pressed("farlands_finder_z"):
+        global_position.z += 100000.0
     
     var allow_stair_snapping = started_process_on_floor
     if Input.is_action_pressed("ui_accept") and (started_process_on_floor or in_water):
@@ -323,6 +325,7 @@ func _process(delta: float) -> void:
     
     var chunk = check_chunk(start_pos, start_vel)
     if !chunk:
+        print("inside non-existent chunk...")
         actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping)
         chunk = check_chunk(start_pos, start_vel)
     
@@ -333,13 +336,14 @@ func _process(delta: float) -> void:
         return type == 0 or type == 1
     
     if chunk:
-        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.01, 0))):
+        var pos = global_position
+        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 0.01, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block(global_position + Vector3(0, 0.5, 0))):
+        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 0.5, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.0, 0))):
+        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 1.0, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block(global_position + Vector3(0, 1.5, 0))):
+        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 1.5, 0))):
             global_position.y += 0.5
     
     $OverlayLayer/WaterOverlay.visible = head_in_water
@@ -355,14 +359,11 @@ func _process(delta: float) -> void:
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func check_chunk(start_pos, start_vel):
-    var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
-    
-    var prev_chunk_coord = world.get_chunk_coord(start_pos)
+    var prev_chunk_coord = world.get_chunk_coord(start_pos) + world.world_origin
     var prev_chunk = world.chunks_loaded.get(prev_chunk_coord)
     
-    var chunk_coord = world.get_chunk_coord(global_position)
+    var chunk_coord = world.get_chunk_coord(global_position) + world.world_origin
     var chunk = world.chunks_loaded.get(chunk_coord)
-    
     
     if not chunk or not chunk.remeshed:
         $DebugLabel.text = str(prev_chunk_coord)
@@ -386,12 +387,12 @@ func check_chunk(start_pos, start_vel):
         
         return null
     else:
-        var d = Voxels.VoxelGenerator.pub_true_height_at_global(world.base_noise, global_position.round())
+        var d = Voxels.VoxelGenerator.pub_true_height_at_global(world.base_noise, global_position.round() + world.world_origin)
         $DebugLabel.text = "%s\n%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
-        var block_in = chunk.get_block(global_position + Vector3.UP*0.5)
-        var head_block_in = chunk.get_block(global_position + Vector3.UP*1.5)
+        var block_in = chunk.get_block_with_origin(global_position + Vector3.UP*0.5)
+        var head_block_in = chunk.get_block_with_origin(global_position + Vector3.UP*1.5)
         in_water = block_in == 6 or head_block_in == 6
-        head_in_water = chunk.get_block($CameraHolder.global_position + Vector3.UP/8.0) == 6
+        head_in_water = chunk.get_block_with_origin($CameraHolder.global_position + Vector3.UP/8.0) == 6
         return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):

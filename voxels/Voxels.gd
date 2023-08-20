@@ -161,6 +161,9 @@ func remesh():
 var block_command_mutex = Mutex.new()
 var block_commands = []
 
+func get_block_with_origin(coord : Vector3) -> int:
+    return get_block(coord + world.world_origin)
+
 func get_block(coord : Vector3) -> int:
     coord += Vector3.ONE*chunk_size/2
     coord -= chunk_position
@@ -170,6 +173,9 @@ func get_block(coord : Vector3) -> int:
         return voxels[index]
     
     return 0
+
+func set_block_with_origin(coord : Vector3, id : int):
+    set_block(coord + world.world_origin, id)
 
 func set_block(coord : Vector3, id : int):
     coord += Vector3.ONE*chunk_size/2
@@ -309,4 +315,6 @@ func accept_remesh():
     else:
         remesh_output_mutex.unlock()
     
-    
+func inform_moved():
+    if body_childed:
+        body_child.force_update_transform()

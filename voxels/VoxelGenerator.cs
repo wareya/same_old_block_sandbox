@@ -71,7 +71,7 @@ public partial class VoxelGenerator : RefCounted
     {
         var erosion_info_freq = 0.1f;
         var min_strength = 0.0f;
-        var max_strength = 64.0f;
+        var max_strength = 96.0f;
         
         float f = noiser.GetNoise2D(global_coord.X*erosion_info_freq, -global_coord.Z*erosion_info_freq - 1100.0f)*0.5f + 0.5f;
         f *= f;
@@ -123,7 +123,7 @@ public partial class VoxelGenerator : RefCounted
             return_h = y;
             erosion = new_erosion;
         }
-        rock = rock + (h - return_h) + (int)(erosion/2);
+        rock = rock + (h - return_h) + (int)(erosion*0.9);
         return (return_h, rock);
     }
     public int pub_true_height_at_global(Noise noiser, Vector3 global_coord)
@@ -223,7 +223,7 @@ public partial class VoxelGenerator : RefCounted
                     erosion = get_erosion(c + Vector3.Up, erosion_strength);
                     noise_above += erosion;
                     
-                    var rock_noise = base_noise + rock_offset + (int)(erosion/2);
+                    var rock_noise = base_noise + rock_offset + (int)(erosion*0.9);
                     
                     byte vox = 0;
                     if (noise < 0.0f)

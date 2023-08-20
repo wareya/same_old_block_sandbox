@@ -64,9 +64,9 @@ func _process(_delta : float) -> void:
         mesh_instance_child.scale = Vector3.ONE * 1.01
         
         if Input.is_action_just_pressed("m1"):
-            world.set_block(delete_point, 0)
+            world.set_block_with_origin(delete_point, 0)
         if Input.is_action_just_pressed("m2"):
-            world.set_block(build_point, 1)
+            world.set_block_with_origin(build_point, 1)
     else:
         mesh_instance_child.visible = false
     #if Input.is_action_just_pressed("m1"):
