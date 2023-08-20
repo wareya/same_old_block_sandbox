@@ -50,6 +50,7 @@ void fragment()
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2ytg"]
 shader = SubResource("Shader_rcwn0")
+shader_parameter/water_color = null
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)
@@ -111,8 +112,10 @@ step_height = 0.6
 
 [node name="OverlayLayer" type="CanvasLayer" parent="."]
 layer = -64
+visible = false
 
 [node name="WaterOverlay" type="ColorRect" parent="OverlayLayer"]
+visible = false
 material = SubResource("ShaderMaterial_e2ytg")
 anchors_preset = 15
 anchor_right = 1.0
@@ -230,10 +233,11 @@ texture = SubResource("GradientTexture2D_afcar")
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -168.0
-offset_top = 1.0
-offset_right = -128.0
-offset_bottom = 24.0
+offset_left = -357.0
+offset_top = 8.0
+offset_right = -11.0
+offset_bottom = 112.0
+grow_horizontal = 0
 label_settings = SubResource("LabelSettings_dykyc")
 horizontal_alignment = 2
 

@@ -1,6 +1,12 @@
 extends Node3D
 class_name World
 
+
+# absolute world limit: between 8000000.0 and 8400000.0 away from origin
+# (that's how long away from origin it takes to start crashing)
+# effective world limit: around 50k away from the origin
+# (camera/world starts vibrating)
+# FIXME: horizontal world limits are not actually currently implemented
 var chunk_table_mutex = Mutex.new()
 var chunks_unloaded = {}
 var chunks_loaded = {}
@@ -13,6 +19,8 @@ func _init():
     randomize()
     world_seed = randi()
     world_seed = 124
+    #world_seed = 578
+    #world_seed = 613
     print(world_seed)
     open_save()
 
@@ -110,13 +118,13 @@ func load_chunk(coord : Vector3):
 var chunks_meshed = 0
 
 # Called when the node enters the scene tree for the first time.
-static var _spawn_range = 2
+static var _spawn_range = 3
 func _ready() -> void:
     base_noise.seed = world_seed
     print(world_seed)
     print(base_noise.seed)
     
-    for y in range(-1, 2):
+    for y in range(-range_v, range_v+1):
         for z in range(-_spawn_range, _spawn_range+1):
             for x in range(-_spawn_range, _spawn_range+1):
                 var c = Vector3(x, y, z)*Voxels.chunk_size
@@ -140,15 +148,16 @@ func _ready() -> void:
     
 
 func place_player():
-    var attempts = 1024
+    var attempts = 2000
     seed(world_seed)
     
     var land_height = -1
     var good_x = 0
     var good_z = 0
+    var _range = _spawn_range + 0.5
     for _i in attempts:
-        var z = randi_range(-Voxels.chunk_size*_spawn_range, Voxels.chunk_size*_spawn_range)
-        var x = randi_range(-Voxels.chunk_size*_spawn_range, Voxels.chunk_size*_spawn_range)
+        var z = randi_range(-Voxels.chunk_size*_range, Voxels.chunk_size*_range)
+        var x = randi_range(-Voxels.chunk_size*_range, Voxels.chunk_size*_range)
         
         land_height = -1
         var found_air = false
@@ -401,6 +410,7 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
                     if Vector2(x, z).length() > range_h-0.5:
                         continue
                     var c = Vector3(x, y, z) * Voxels.chunk_size
+                    var c2 = c - player_chunk*Vector3(0, 1, 0)
                     
                     var c_global = c + player_chunk*Vector3(1, 0, 1)
                     
@@ -408,9 +418,9 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
                         continue
                     
                     var h_dist = (c*Vector3(1, 0, 1)).length()
-                    var score = c.length()
+                    var score = c2.length()
                     if score > 30.0 and h_dist > 30.0:
-                        var cn = c/score
+                        var cn = c2/score
                         if cn.dot(facing_dir) < -0.5:
                             score += 200.0
                         if cn.dot(facing_dir) < 0.0:
@@ -462,7 +472,10 @@ func dynamically_load_world(player_chunk, facing_dir):
             else:
                 vox = all_chunks[c_coord]
             
+            var y_limit = range_v
             for y in range(-1, 2):
+                if c_coord.y/Voxels.chunk_size+y < -y_limit or c_coord.y/Voxels.chunk_size+y > y_limit:
+                    continue
                 for z in range(-1, 2):
                     for x in range(-1, 2):
                         var c2_coord = Vector3(x, y, z) * Voxels.chunk_size + c_coord

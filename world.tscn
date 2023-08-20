@@ -1,17 +1,20 @@
-[gd_scene load_steps=12 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=16 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="2_yo0d7"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
-noise_type = 0
-frequency = 0.005
-fractal_ping_pong_strength = 0.75
-cellular_distance_function = 3
-cellular_jitter = 1.13
-domain_warp_frequency = 0.01
-domain_warp_fractal_octaves = 2
-domain_warp_fractal_lacunarity = 4.0
+noise_type = 5
+seed = 124
+fractal_octaves = 3
+fractal_lacunarity = 4.14
+fractal_gain = 0.3
+cellular_distance_function = 2
+cellular_jitter = 1.0
+cellular_return_type = 5
+domain_warp_amplitude = 35.295
+domain_warp_frequency = 0.035
+domain_warp_fractal_octaves = 1
 metadata/_preview_in_3d_space_ = true
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_a1coy"]
@@ -79,6 +82,26 @@ size = Vector2(11.78, 9.74)
 metallic = 1.0
 roughness = 0.0
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_34jdu"]
+noise_type = 5
+frequency = 0.02
+fractal_type = 3
+fractal_octaves = 2
+fractal_ping_pong_strength = 1.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_3p04s"]
+noise = SubResource("FastNoiseLite_34jdu")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ufa32"]
+noise_type = 3
+frequency = 0.02
+fractal_type = 3
+fractal_octaves = 2
+fractal_ping_pong_strength = 1.5
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_7jmul"]
+noise = SubResource("FastNoiseLite_ufa32")
+
 [node name="World" type="Node3D" groups=["World"]]
 script = ExtResource("1_m7hry")
 base_noise = SubResource("FastNoiseLite_5sm6h")
@@ -88,7 +111,6 @@ environment = SubResource("Environment_3qx6c")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 2.36717, -1.64375)
-light_angular_distance = 0.5
 shadow_enabled = true
 
 [node name="FPS" type="Label" parent="."]
@@ -119,3 +141,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.96655, 0.189953, 0)
 visible = false
 mesh = SubResource("PlaneMesh_n8sif")
 surface_material_override/0 = SubResource("StandardMaterial3D_h7ptm")
+
+[node name="TextureRect" type="TextureRect" parent="."]
+visible = false
+offset_right = 512.0
+offset_bottom = 512.0
+texture = SubResource("NoiseTexture2D_3p04s")
+
+[node name="TextureRect2" type="TextureRect" parent="."]
+visible = false
+offset_right = 512.0
+offset_bottom = 512.0
+texture = SubResource("NoiseTexture2D_7jmul")
