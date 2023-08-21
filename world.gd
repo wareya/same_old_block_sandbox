@@ -143,6 +143,7 @@ func _ready() -> void:
     
     chunks_loaded[c] = vox
     
+var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func place_player():
     var attempts = 2000
@@ -160,7 +161,7 @@ func place_player():
         var found_air = false
         for y in range(Voxels.chunk_size*1.5 - 2, -Voxels.chunk_size, -1):
             var vox = get_block(Vector3i(x, y, z))
-            var type = Voxels.vox_get_type(vox)
+            var type = VoxelMesher.vox_get_type_pub(vox)
             if type == 2:
                 break
             elif vox == 0:

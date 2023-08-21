@@ -6,39 +6,10 @@ static var chunk_size : int = 16
 static var chunk_vec3i : Vector3i = Vector3i(chunk_size, chunk_size, chunk_size)
 static var bounds : AABB = AABB(Vector3(), Vector3.ONE*(chunk_size-1))
 
-# top, bottom, side
-static var voxel_info = [
-    # 0
-    [0, 0, 0], # air
-    [0, 10, 20], # grass
-    [10, 10, 10], # dirt
-    [30, 30, 30], # rock
-    [50, 50, 40], # log
-    # 5
-    [60, 60, 60], # leaf
-    [70, 70, 70], # water
-]
-
-static var vox_alphatest = {
-    5 : null, # leaf
-}
-static var vox_transparent = {
-    6 : null, # water
-}
-
-static func vox_get_type(vox : int):
-    if vox in vox_alphatest:
-        return 1
-    elif vox in vox_transparent:
-        return 2
-    return 0
-    
-
 # 0xFF - not cached. other: cached, "on" bits are drawn sides.
 var side_cache = PackedByteArray()
-# bitmask - which neighbors are "connected" to the given voxel face
-var bitmask_cache = PackedByteArray()
 
+# actual voxel array
 var voxels = PackedByteArray()
 
 static var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
@@ -48,8 +19,6 @@ func generate():
     var _start = Time.get_ticks_usec()
     side_cache.resize(chunk_size*chunk_size*chunk_size)
     side_cache.fill(0xFF)
-    bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
-    bitmask_cache.fill(0x0)
     
     var offset = -Vector3i.ONE*chunk_size/2 + chunk_position
     var offset_2d = Vector2i(offset.x, offset.z)
@@ -83,8 +52,6 @@ func do_generation(pos : Vector3i):
 func load_generation(pos : Vector3i, _voxels : PackedByteArray):
     side_cache.resize(chunk_size*chunk_size*chunk_size)
     side_cache.fill(0xFF)
-    bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
-    bitmask_cache.fill(0x0)
     
     chunk_position = pos
     voxels = _voxels
