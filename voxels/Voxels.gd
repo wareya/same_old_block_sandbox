@@ -76,11 +76,11 @@ func _notification(what: int) -> void:
             body_child = null
 
 var chunk_position : Vector3i = Vector3i()
-func do_generation(pos : Vector3):
+func do_generation(pos : Vector3i):
     chunk_position = pos
     generate()
 
-func load_generation(pos : Vector3, _voxels : PackedByteArray):
+func load_generation(pos : Vector3i, _voxels : PackedByteArray):
     side_cache.resize(chunk_size*chunk_size*chunk_size)
     side_cache.fill(0xFF)
     bitmask_cache.resize(chunk_size*chunk_size*chunk_size*6)
@@ -89,27 +89,8 @@ func load_generation(pos : Vector3, _voxels : PackedByteArray):
     chunk_position = pos
     voxels = _voxels
 
-static var dirs = [Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
-static var right_dirs = [Vector3.RIGHT, Vector3.LEFT, Vector3.LEFT, Vector3.RIGHT, Vector3.BACK, Vector3.FORWARD]
-static var up_dirs = [Vector3.FORWARD, Vector3.BACK, Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP]
-static var face_verts = [Vector3(0.5, 0.5, -0.5), Vector3(-0.5, 0.5, -0.5), Vector3(0.5, -0.5, -0.5), Vector3(-0.5, -0.5, -0.5)]
-
-static func coord_to_index(coord : Vector3) -> float:
+static func coord_to_index(coord : Vector3i) -> float:
     return coord.y*chunk_size*chunk_size + coord.z*chunk_size + coord.x
-
-
-static func generate_verts():
-    var verts = PackedVector3Array()
-    for dir in dirs:
-        var ref_dir = Vector3.UP if not dir.abs() == Vector3.UP else Vector3.LEFT
-        var xform = Transform3D.IDENTITY.looking_at(dir, ref_dir)
-        for i in [0, 1, 2, 3]:
-            var v = face_verts[i]
-            v = xform * v
-            verts.push_back(v)
-    return verts
-
-static var vert_table = generate_verts()
 
 var remesh_output_mutex = Mutex.new()
 var remesh_output = []
@@ -190,16 +171,16 @@ func set_block(coord : Vector3i, id : int):
 var dirty_command_mutex = Mutex.new()
 var dirty_commands = []
 
-func dirty_block(coord : Vector3):
+func dirty_block(coord : Vector3i):
     dirty_command_mutex.lock()
     dirty_commands.push_back(coord)
     dirty_command_mutex.unlock()
 
-func _dirty_block(coord : Vector3):
+func _dirty_block(coord : Vector3i):
     for y in range(-1, 2):
         for z in range(-1, 2):
             for x in range(-1, 2):
-                var c = coord + Vector3(x, y, z)
+                var c = coord + Vector3i(x, y, z)
                 if bounds.has_point(c):
                     side_cache[Voxels.coord_to_index(c)] = 0xFF
 
@@ -211,16 +192,16 @@ func dirty_sides():
 func _dirty_sides():
     for y in chunk_size:
         for z in chunk_size:
-            side_cache[Voxels.coord_to_index(Vector3(0, y, z))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3(chunk_size-1, y, z))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(0, y, z))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(chunk_size-1, y, z))] = 0xFF
     for y in chunk_size:
         for x in chunk_size:
-            side_cache[Voxels.coord_to_index(Vector3(x, y, 0))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3(x, y, chunk_size-1))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(x, y, 0))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(x, y, chunk_size-1))] = 0xFF
     for z in chunk_size:
         for x in chunk_size:
-            side_cache[Voxels.coord_to_index(Vector3(x, 0, z))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3(x, chunk_size-1, z))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(x, 0, z))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(x, chunk_size-1, z))] = 0xFF
 
 var remesh_semaphore = Semaphore.new()
 var remesh_thread = Thread.new()

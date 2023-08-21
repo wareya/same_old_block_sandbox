@@ -7,7 +7,7 @@
 noise_type = 5
 seed = 124
 fractal_octaves = 3
-fractal_lacunarity = 4.14
+fractal_lacunarity = 4.0
 fractal_gain = 0.3
 cellular_distance_function = 2
 cellular_jitter = 1.0

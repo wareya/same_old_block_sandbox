@@ -2,9 +2,8 @@ extends Node3D
 class_name World
 
 
-# absolute world limit: 8,388,608 units away from origin
-# (that's how long away from origin it takes to start crashing, because floats can no longer store ints)
-# FIXME: this horizontal world limit is not actually currently implemented
+# approximate world limit: 16777216 units away from origin
+# actual world limit: 32-bit signed integer overflow
 var chunk_table_mutex = Mutex.new()
 var chunks_unloaded = {}
 var chunks_loaded = {}
@@ -403,14 +402,15 @@ func dynamically_unload_world(player_chunk):
 
 func do_unload(chunk_list : Array):
     for chunk in chunk_list:
+        print("freeing chunk at ", chunk.chunk_position)
         if chunk.is_inside_tree():
             chunk.get_parent().remove_child(chunk)
         chunk.free()
 
-var _find_chunks_prev_player_chunk = Vector3(0.1, 0.1, 0.1)
+var _find_chunks_prev_player_chunk = null
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
-func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
+func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
     var dot = facing_dir.dot(_find_chunks_prev_facing_dir)
     if _find_chunks_prev_player_chunk != player_chunk or dot < 0.95:
         #print("finding chunk load")
@@ -422,17 +422,17 @@ func find_chunk_load_queue(player_chunk : Vector3, facing_dir : Vector3):
         for y in range(-range_v, range_v+1):
             for z in range(-range_h, range_h+1):
                 for x in range(-range_h, range_h+1):
-                    if Vector2(x, z).length() > range_h-0.5:
+                    if Vector2i(x, z).length() > range_h-0.5:
                         continue
-                    var c = Vector3(x, y, z) * Voxels.chunk_size
-                    var c2 = c - player_chunk*Vector3(0, 1, 0)
+                    var c = Vector3i(x, y, z) * Voxels.chunk_size
+                    var c2 = c - player_chunk*Vector3i(0, 1, 0)
                     
-                    var c_global = Vector3i(c + player_chunk*Vector3(1, 0, 1))
+                    var c_global = c + player_chunk*Vector3i(1, 0, 1)
                     
                     if c_global in chunks_loaded:
                         continue
                     
-                    var h_dist = (c*Vector3(1, 0, 1)).length()
+                    var h_dist = (c*Vector3i(1, 0, 1)).length()
                     var score = c2.length()
                     if score > 30.0 and h_dist > 30.0:
                         var cn = c2/score
@@ -560,9 +560,9 @@ func add_and_load_all(chunks):
     dirtify_world()
     #print("add time: ", (Time.get_ticks_usec() - _start)/1000.0)
 
-func initial_add_vox(vox : Node3D, coord : Vector3):
+func initial_add_vox(vox : Node3D, coord : Vector3i):
     add_child(vox)
-    vox.global_position = coord - Vector3(world_origin)
+    vox.global_position = coord - world_origin
     
     vox.force_update_transform()
     vox.accept_remesh()
