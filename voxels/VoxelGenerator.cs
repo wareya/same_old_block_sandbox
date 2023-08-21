@@ -3,35 +3,34 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+/*
 partial class CustomNoise
 {
     // Ported from the FastNoiseLite project. https://github.com/Auburn/FastNoiseLite
     // FastNoiseLite license follows. Applies to this class. Ported from C++ to C#.
     
-    /*
-    MIT License
-
-    Copyright(c) 2020 Jordan Peck (jordan.me2@gmail.com)
-    Copyright(c) 2020 Contributors
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-    */
+    // MIT License
+    // 
+    // Copyright(c) 2020 Jordan Peck (jordan.me2@gmail.com)
+    // Copyright(c) 2020 Contributors
+    // 
+    // Permission is hereby granted, free of charge, to any person obtaining a copy
+    // of this software and associated documentation files (the "Software"), to deal
+    // in the Software without restriction, including without limitation the rights
+    // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    // copies of the Software, and to permit persons to whom the Software is
+    // furnished to do so, subject to the following conditions:
+    // 
+    // The above copyright notice and this permission notice shall be included in all
+    // copies or substantial portions of the Software.
+    // 
+    // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    // SOFTWARE.
     
     public int mSeed = 0;
     public double mFrequency = 0.01;
@@ -224,7 +223,7 @@ partial class CustomNoise
         hash *= 0x27d4eb2d;
         return hash;
     }
-}
+}*/
 
 public partial class VoxelGenerator : RefCounted
 {
@@ -238,6 +237,11 @@ public partial class VoxelGenerator : RefCounted
         return x;
     }
     
+    const int blend_distance = 32;
+    const long blend_max_value = int.MaxValue;
+    const long blend_threshold = blend_max_value - blend_distance;
+    const int blend_reflect_base = int.MinValue + blend_distance;
+    
     static float noise_blend_wrapper(int x, int z, float freq, int x_offset, int z_offset, Func<double, double, float> f)
     {
         var x_over = x > blend_threshold;
@@ -246,7 +250,7 @@ public partial class VoxelGenerator : RefCounted
         if (x_over && !z_over)
         {
             var x_over_amount = x - blend_threshold;
-            long x2 = int.MinValue + blend_distance - x_over_amount + 1;
+            long x2 = blend_reflect_base - x_over_amount + 1;
             var t = x_over_amount / (float)blend_distance;
             var noise_x_reflect = f(x2*(double)freq + x_offset, z*(double)freq + z_offset);
             noise_base = Lerp(noise_base, noise_x_reflect, t);
@@ -254,7 +258,7 @@ public partial class VoxelGenerator : RefCounted
         else if (z_over && !x_over)
         {
             var z_over_amount = z - blend_threshold;
-            long z2 = int.MinValue + blend_distance - z_over_amount + 1;
+            long z2 = blend_reflect_base - z_over_amount + 1;
             var t = z_over_amount / (float)blend_distance;
             var noise_z_reflect = f(x*(double)freq + x_offset, z2*(double)freq + z_offset);
             noise_base = Lerp(noise_base, noise_z_reflect, t);
@@ -262,11 +266,11 @@ public partial class VoxelGenerator : RefCounted
         else
         {
             var x_over_amount = x - blend_threshold;
-            long x2 = int.MinValue + blend_distance - x_over_amount + 1;
+            long x2 = blend_reflect_base - x_over_amount + 1;
             var tx = x_over_amount / (float)blend_distance;
             
             var z_over_amount = z - blend_threshold;
-            long z2 = int.MinValue + blend_distance - z_over_amount + 1;
+            long z2 = blend_reflect_base - z_over_amount + 1;
             var tz = z_over_amount / (float)blend_distance;
             
             var noise_x_reflect = f(x2*(double)freq + x_offset, z*(double)freq + z_offset);
@@ -280,10 +284,6 @@ public partial class VoxelGenerator : RefCounted
         
         return noise_base;
     }
-
-    const int blend_distance = 32;
-    const long blend_max_value = int.MaxValue;
-    const long blend_threshold = blend_max_value - blend_distance;
     
     static float Lerp(float a, float b, float t) { return a + t * (b - a); }
     // gets 2d value noise
@@ -292,9 +292,9 @@ public partial class VoxelGenerator : RefCounted
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
         if (x_over || z_over)
-            return noise_blend_wrapper(x, z, freq, x_offset, z_offset, custom_noise.GenFractalFBm);
+            return noise_blend_wrapper(x, z, freq, x_offset, z_offset, (x, z) => {return custom_noise.GetNoise(x, z);});
         else
-            return custom_noise.GenFractalFBm(x*(double)freq + x_offset, z*(double)freq + z_offset);
+            return custom_noise.GetNoise(x*(double)freq + x_offset, z*(double)freq + z_offset);
     }
     // gets 3d perlin noise
     public static float get_noise_3d_adjusted(Noise noiser, int x, int y, int z, float freq = 1.0f)
@@ -302,12 +302,15 @@ public partial class VoxelGenerator : RefCounted
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
         if (x_over || z_over)
-            return noise_blend_wrapper(x, z, freq, 0, 0, (x, z) => {return erosion_noise.GenFractalPingPong(x, y, z);});
+            return noise_blend_wrapper(x, z, freq, 0, 0, (x, z) => {return erosion_noise.GetNoise(x, y, z);});
         else
-            return erosion_noise.GenFractalPingPong(x*(double)freq, y*(double)freq, z*(double)freq);
+            return erosion_noise.GetNoise(x*(double)freq, y*(double)freq, z*(double)freq);
     }
     public static (int, int) height_at_global(Noise noiser, int x, int z)
     {
+        x += chunk_size/2;
+        z += chunk_size/2;
+        
         float height = get_noise_2d_adjusted(noiser, x, z);
         
         float steepness_preoffset_freq = 0.5f;
@@ -362,6 +365,9 @@ public partial class VoxelGenerator : RefCounted
     }
     static float erosion_strength_at_global(Noise noiser, Vector3I global_coord)
     {
+        global_coord.X += chunk_size/2;
+        global_coord.Z += chunk_size/2;
+        
         var erosion_info_freq = 0.1f;
         var min_strength = 0.0f;
         var max_strength = 96.0f;
@@ -371,7 +377,7 @@ public partial class VoxelGenerator : RefCounted
         return Mathf.Lerp(min_strength, max_strength, f);
     }
     //static FastNoiseLite buh()
-    static CustomNoise buh()
+    static FastNoiseLite buh()
     {
         /*
         var r = new FastNoiseLite();
@@ -381,15 +387,16 @@ public partial class VoxelGenerator : RefCounted
         r.FractalPingPongStrength = 1.5f;
         r.Frequency = 0.02f; // or: 0.02f
         */
-        var r = new CustomNoise();
-        r.mOctaves = 2;
-        r.mFrequency = 0.02f;
-        r.CalculateFractalBounding();
+        var r = new FastNoiseLite();
+        r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        r.SetFractalType(FastNoiseLite.FractalType.PingPong);
+        r.SetFractalOctaves(2);
+        r.SetFractalPingPongStrength(1.5f);
+        r.SetFrequency(0.02f);
         return r;
     }
-    static CustomNoise custom_noise = new CustomNoise();
-    //static FastNoiseLite erosion_noise = buh();
-    static CustomNoise erosion_noise = buh();
+    static FastNoiseLite custom_noise = new FastNoiseLite();
+    static FastNoiseLite erosion_noise = buh();
     static bool erosion_seed_set = false;
     static float get_erosion(Vector3I global_coord, float strength)
     {
@@ -497,17 +504,16 @@ public partial class VoxelGenerator : RefCounted
         
         if (!erosion_seed_set)
         {
-            var n = ((FastNoiseLite)noiser);
-            custom_noise.mSeed = n.Seed;
-            custom_noise.mFrequency = n.Frequency;
+            var n = (Godot.FastNoiseLite)noiser;
+            custom_noise.SetSeed(n.Seed);
+            custom_noise.SetFrequency(n.Frequency);
+            custom_noise.SetNoiseType(FastNoiseLite.NoiseType.Value);
 
-            custom_noise.mOctaves = n.FractalOctaves;
-            custom_noise.mLacunarity = n.FractalLacunarity;
-            custom_noise.mGain = n.FractalGain;
+            custom_noise.SetFractalOctaves(n.FractalOctaves);
+            custom_noise.SetFractalLacunarity(n.FractalLacunarity);
+            custom_noise.SetFractalGain(n.FractalGain);
             
-            custom_noise.CalculateFractalBounding();
-            
-            erosion_noise.mSeed = n.Seed+2;
+            erosion_noise.SetSeed(n.Seed+2);
             erosion_seed_set = true;
         }
         
