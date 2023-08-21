@@ -56,6 +56,8 @@ using FNLfloat = System.Double;
 
 public class FastNoiseLite
 {
+    const bool UNWANTED_FEATURES = false;
+
     private const short INLINE = 256; // MethodImplOptions.AggressiveInlining;
     private const short OPTIMISE = 512; // MethodImplOptions.AggressiveOptimization;
 
@@ -764,6 +766,8 @@ public class FastNoiseLite
     {
         x *= mFrequency;
         y *= mFrequency;
+        
+        if (!UNWANTED_FEATURES) return;
 
         switch (mNoiseType)
         {
@@ -788,6 +792,8 @@ public class FastNoiseLite
         x *= mFrequency;
         y *= mFrequency;
         z *= mFrequency;
+        
+        if (!UNWANTED_FEATURES) return;
 
         switch (mTransformType3D)
         {
@@ -943,16 +949,20 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
             float noise = GenNoiseSingle(seed++, x, y);
             sum += noise * amp;
-            amp *= Lerp(1.0f, FastMin(noise + 1, 2) * 0.5f, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, FastMin(noise + 1, 2) * 0.5f, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            amp *= gain;
         }
 
         return sum;
@@ -963,17 +973,21 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
             float noise = GenNoiseSingle(seed++, x, y, z);
             sum += noise * amp;
-            amp *= Lerp(1.0f, (noise + 1) * 0.5f, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, (noise + 1) * 0.5f, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            z *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            z *= lacunarity;
+            amp *= gain;
         }
 
         return sum;
@@ -987,16 +1001,20 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
             float noise = FastAbs(GenNoiseSingle(seed++, x, y));
             sum += (noise * -2 + 1) * amp;
-            amp *= Lerp(1.0f, 1 - noise, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, 1 - noise, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            amp *= gain;
         }
 
         return sum;
@@ -1007,17 +1025,21 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
             float noise = FastAbs(GenNoiseSingle(seed++, x, y, z));
             sum += (noise * -2 + 1) * amp;
-            amp *= Lerp(1.0f, 1 - noise, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, 1 - noise, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            z *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            z *= lacunarity;
+            amp *= gain;
         }
 
         return sum;
@@ -1031,16 +1053,21 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
+        float pingpong = mPingPongStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
-            float noise = PingPong((GenNoiseSingle(seed++, x, y) + 1) * mPingPongStrength);
+            float noise = PingPong((GenNoiseSingle(seed++, x, y) + 1) * pingpong);
             sum += (noise - 0.5f) * 2 * amp;
-            amp *= Lerp(1.0f, noise, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, noise, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            amp *= gain;
         }
 
         return sum;
@@ -1051,17 +1078,22 @@ public class FastNoiseLite
         int seed = mSeed;
         float sum = 0;
         float amp = mFractalBounding;
+        int octaves = mOctaves;
+        float lacunarity = mLacunarity;
+        float gain = mGain;
+        float weighting = mWeightedStrength;
+        float pingpong = mPingPongStrength;
 
-        for (int i = 0; i < mOctaves; i++)
+        for (int i = 0; i < octaves; i++)
         {
-            float noise = PingPong((GenNoiseSingle(seed++, x, y, z) + 1) * mPingPongStrength);
+            float noise = PingPong((GenNoiseSingle(seed++, x, y, z) + 1) * pingpong);
             sum += (noise - 0.5f) * 2 * amp;
-            amp *= Lerp(1.0f, noise, mWeightedStrength);
+            if (!UNWANTED_FEATURES) amp *= Lerp(1.0f, noise, weighting);
 
-            x *= mLacunarity;
-            y *= mLacunarity;
-            z *= mLacunarity;
-            amp *= mGain;
+            x *= lacunarity;
+            y *= lacunarity;
+            z *= lacunarity;
+            amp *= gain;
         }
 
         return sum;

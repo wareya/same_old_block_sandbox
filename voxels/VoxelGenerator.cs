@@ -3,253 +3,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
-using NoiseBase = FastNoiseLite;
-
-partial class CustomNoise
-{
-    // Ported from the FastNoiseLite project. https://github.com/Auburn/FastNoiseLite
-    // FastNoiseLite license follows. Applies to this class. Ported from C++ to C#.
-    
-    // MIT License
-    // 
-    // Copyright(c) 2020 Jordan Peck (jordan.me2@gmail.com)
-    // Copyright(c) 2020 Contributors
-    // 
-    // Permission is hereby granted, free of charge, to any person obtaining a copy
-    // of this software and associated documentation files (the "Software"), to deal
-    // in the Software without restriction, including without limitation the rights
-    // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    // copies of the Software, and to permit persons to whom the Software is
-    // furnished to do so, subject to the following conditions:
-    // 
-    // The above copyright notice and this permission notice shall be included in all
-    // copies or substantial portions of the Software.
-    // 
-    // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    // SOFTWARE.
-    
-    public int mSeed = 0;
-    public float mFrequency = 0.01f;
-
-    public int mOctaves = 5;
-    public float mLacunarity = 2.0f;
-    public float mGain = 0.5f;
-    public float mPingPongStrength = 1.5f;
-    
-    public float mFractalBounding = 1.0f;
-
-    public void CalculateFractalBounding()
-    {
-        float gain = (float)FastAbs(mGain);
-        float amp = gain;
-        float ampFractal = 1.0f;
-        for (int i = 1; i < mOctaves; i++)
-        {
-            ampFractal += amp;
-            amp *= gain;
-        }
-        mFractalBounding = 1 / ampFractal;
-    }
-    
-    public void SetNoiseType(FastNoiseLite.NoiseType noiseType) { }
-
-    public void SetFractalType(FastNoiseLite.FractalType fractalType) { }
-
-
-    static double FastAbs(double f) { return f < 0 ? -f : f; }
-    static int FastFloor(double f) { return f >= 0 ? (int)f : (int)f - 1; }
-
-    static float Lerp(float a, float b, float t) { return a + t * (b - a); }
-
-    static float InterpHermite(float t) { return t * t * (3 - 2 * t); }
-    static float InterpQuintic(float t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-
-    const int PrimeX = 501125321;
-    const int PrimeY = 1136930381;
-    const int PrimeZ = 1720413743;
-    
-    public void SetSeed(int seed) { mSeed = seed; }
-
-    public void SetFrequency(float frequency) { mFrequency = frequency; }
-
-    public void SetFractalOctaves(int octaves)
-    {
-        mOctaves = octaves;
-        CalculateFractalBounding();
-    }
-    public void SetFractalLacunarity(float lacunarity) { mLacunarity = lacunarity; }
-
-    public void SetFractalGain(float gain)
-    {
-        mGain = gain;
-        CalculateFractalBounding();
-    }
-    
-    public void SetFractalPingPongStrength(float pingPongStrength) { mPingPongStrength = pingPongStrength; }
-
-
-    public float GetNoise(double x, double y)
-    {
-        x *= mFrequency;
-        y *= mFrequency;
-        
-        int seed = mSeed;
-        float sum = 0.0f;
-        float amp = mFractalBounding;
-
-        for (int i = 0; i < mOctaves; i++)
-        {
-            float noise = SingleValue(seed++, x, y);
-            sum += noise * amp;
-
-            x *= mLacunarity;
-            y *= mLacunarity;
-            amp *= mGain;
-        }
-
-        return sum;
-    }
-    static float PingPong(float t)
-    {
-        t -= (int)(t * 0.5f) * 2;
-        return t < 1 ? t : 2 - t;
-    }
-    public float GetNoise(double x, double y, double z)
-    {
-        x *= mFrequency;
-        y *= mFrequency;
-        z *= mFrequency;
-        
-        int seed = mSeed;
-        float sum = 0;
-        float amp = mFractalBounding;
-
-        for (int i = 0; i < mOctaves; i++)
-        {
-            float noise = PingPong((SinglePerlin(seed++, x, y, z) + 1) * mPingPongStrength);
-            sum += (noise - 0.5f) * 2 * amp;
-
-            x *= mLacunarity;
-            y *= mLacunarity;
-            z *= mLacunarity;
-            amp *= mGain;
-        }
-
-        return sum;
-    }
-    float SingleValue(int seed, double x, double y)
-    {
-        int x0 = FastFloor(x);
-        int y0 = FastFloor(y);
-
-        float xs = InterpHermite((float)(x - x0));
-        float ys = InterpHermite((float)(y - y0));
-
-        x0 *= PrimeX;
-        y0 *= PrimeY;
-        int x1 = x0 + PrimeX;
-        int y1 = y0 + PrimeY;
-
-        float xf0 = Lerp(ValCoord(seed, x0, y0), ValCoord(seed, x1, y0), xs);
-        float xf1 = Lerp(ValCoord(seed, x0, y1), ValCoord(seed, x1, y1), xs);
-
-        return Lerp(xf0, xf1, ys);
-    }
-    float SinglePerlin(int seed, double x, double y, double z)
-    {
-        int x0 = FastFloor(x);
-        int y0 = FastFloor(y);
-        int z0 = FastFloor(z);
-
-        float xd0 = (float)(x - x0);
-        float yd0 = (float)(y - y0);
-        float zd0 = (float)(z - z0);
-        float xd1 = xd0 - 1;
-        float yd1 = yd0 - 1;
-        float zd1 = zd0 - 1;
-
-        float xs = InterpQuintic(xd0);
-        float ys = InterpQuintic(yd0);
-        float zs = InterpQuintic(zd0);
-
-        x0 *= PrimeX;
-        y0 *= PrimeY;
-        z0 *= PrimeZ;
-        int x1 = x0 + PrimeX;
-        int y1 = y0 + PrimeY;
-        int z1 = z0 + PrimeZ;
-
-        float xf00 = Lerp(GradCoord(seed, x0, y0, z0, xd0, yd0, zd0), GradCoord(seed, x1, y0, z0, xd1, yd0, zd0), xs);
-        float xf10 = Lerp(GradCoord(seed, x0, y1, z0, xd0, yd1, zd0), GradCoord(seed, x1, y1, z0, xd1, yd1, zd0), xs);
-        float xf01 = Lerp(GradCoord(seed, x0, y0, z1, xd0, yd0, zd1), GradCoord(seed, x1, y0, z1, xd1, yd0, zd1), xs);
-        float xf11 = Lerp(GradCoord(seed, x0, y1, z1, xd0, yd1, zd1), GradCoord(seed, x1, y1, z1, xd1, yd1, zd1), xs);
-
-        float yf0 = Lerp(xf00, xf10, ys);
-        float yf1 = Lerp(xf01, xf11, ys);
-
-        return Lerp(yf0, yf1, zs) * 0.964921414852142333984375f;
-    }
-    float GradCoord(int seed, int xPrimed, int yPrimed, int zPrimed, float xd, float yd, float zd)
-    {
-        int hash = Hash(seed, xPrimed, yPrimed, zPrimed);
-        hash ^= hash >> 15;
-        hash &= 63 << 2;
-
-        float xg = Gradients3D[hash];
-        float yg = Gradients3D[hash | 1];
-        float zg = Gradients3D[hash | 2];
-
-        return xd * xg + yd * yg + zd * zg;
-    }
-    readonly float[] Gradients3D = new float[]
-    {
-        0, 1, 1, 0,  0,-1, 1, 0,  0, 1,-1, 0,  0,-1,-1, 0,
-        1, 0, 1, 0, -1, 0, 1, 0,  1, 0,-1, 0, -1, 0,-1, 0,
-        1, 1, 0, 0, -1, 1, 0, 0,  1,-1, 0, 0, -1,-1, 0, 0,
-        0, 1, 1, 0,  0,-1, 1, 0,  0, 1,-1, 0,  0,-1,-1, 0,
-        1, 0, 1, 0, -1, 0, 1, 0,  1, 0,-1, 0, -1, 0,-1, 0,
-        1, 1, 0, 0, -1, 1, 0, 0,  1,-1, 0, 0, -1,-1, 0, 0,
-        0, 1, 1, 0,  0,-1, 1, 0,  0, 1,-1, 0,  0,-1,-1, 0,
-        1, 0, 1, 0, -1, 0, 1, 0,  1, 0,-1, 0, -1, 0,-1, 0,
-        1, 1, 0, 0, -1, 1, 0, 0,  1,-1, 0, 0, -1,-1, 0, 0,
-        0, 1, 1, 0,  0,-1, 1, 0,  0, 1,-1, 0,  0,-1,-1, 0,
-        1, 0, 1, 0, -1, 0, 1, 0,  1, 0,-1, 0, -1, 0,-1, 0,
-        1, 1, 0, 0, -1, 1, 0, 0,  1,-1, 0, 0, -1,-1, 0, 0,
-        0, 1, 1, 0,  0,-1, 1, 0,  0, 1,-1, 0,  0,-1,-1, 0,
-        1, 0, 1, 0, -1, 0, 1, 0,  1, 0,-1, 0, -1, 0,-1, 0,
-        1, 1, 0, 0, -1, 1, 0, 0,  1,-1, 0, 0, -1,-1, 0, 0,
-        1, 1, 0, 0,  0,-1, 1, 0, -1, 1, 0, 0,  0,-1,-1, 0
-    };
-
-
-    static float ValCoord(int seed, int xPrimed, int yPrimed)
-    {
-        int hash = Hash(seed, xPrimed, yPrimed);
-
-        hash *= hash;
-        hash ^= hash << 19;
-        return hash * (1 / 2147483648.0f);
-    }
-    static int Hash(int seed, int xPrimed, int yPrimed)
-    {
-        int hash = seed ^ xPrimed ^ yPrimed;
-
-        hash *= 0x27d4eb2d;
-        return hash;
-    }
-    static int Hash(int seed, int xPrimed, int yPrimed, int zPrimed)
-    {
-        int hash = seed ^ xPrimed ^ yPrimed ^ zPrimed;
-
-        hash *= 0x27d4eb2d;
-        return hash;
-    }
-}
+using NoiseType = FastNoiseLite;
 
 public partial class VoxelGenerator : RefCounted
 {
@@ -403,7 +157,7 @@ public partial class VoxelGenerator : RefCounted
         return Mathf.Lerp(min_strength, max_strength, f);
     }
     //static FastNoiseLite buh()
-    static NoiseBase buh()
+    static NoiseType buh()
     {
         /*
         var r = new FastNoiseLite();
@@ -413,7 +167,7 @@ public partial class VoxelGenerator : RefCounted
         r.FractalPingPongStrength = 1.5f;
         r.Frequency = 0.02f; // or: 0.02f
         */
-        var r = new NoiseBase();
+        var r = new NoiseType();
         r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
         r.SetFractalType(FastNoiseLite.FractalType.PingPong);
         r.SetFractalOctaves(2);
@@ -421,8 +175,8 @@ public partial class VoxelGenerator : RefCounted
         r.SetFrequency(0.02f);
         return r;
     }
-    static NoiseBase custom_noise = new NoiseBase();
-    static NoiseBase erosion_noise = buh();
+    static NoiseType custom_noise = new NoiseType();
+    static NoiseType erosion_noise = buh();
     static bool erosion_seed_set = false;
     static float get_erosion(Vector3I global_coord, float strength)
     {
