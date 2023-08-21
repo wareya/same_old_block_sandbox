@@ -402,7 +402,7 @@ func dynamically_unload_world(player_chunk):
 
 func do_unload(chunk_list : Array):
     for chunk in chunk_list:
-        print("freeing chunk at ", chunk.chunk_position)
+        #print("freeing chunk at ", chunk.chunk_position)
         if chunk.is_inside_tree():
             chunk.get_parent().remove_child(chunk)
         chunk.free()

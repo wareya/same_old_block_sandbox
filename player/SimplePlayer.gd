@@ -282,9 +282,9 @@ func _process(delta: float) -> void:
     #handle_stick_input(delta)
     
     if Input.is_action_just_pressed("farlands_finder"):
-        global_position.x += 8388608.0*8.0*8.0 - 100.0
+        global_position.x += 8388608.0*8.0*8.0
     if Input.is_action_just_pressed("farlands_finder_z"):
-        global_position.z += 8388608.0*8.0*8.0 - 100.0
+        global_position.z += 8388608.0*8.0*8.0
     
     var allow_stair_snapping = started_process_on_floor
     if Input.is_action_pressed("ui_accept") and (started_process_on_floor or in_water):
