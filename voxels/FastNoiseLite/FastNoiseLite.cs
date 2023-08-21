@@ -126,7 +126,7 @@ public class FastNoiseLite
     private RotationType3D mRotationType3D = RotationType3D.None;
     private TransformType3D mTransformType3D = TransformType3D.DefaultOpenSimplex2;
 
-    private FractalType mFractalType = FractalType.None;
+    private FractalType mFractalType = FractalType.FBm;
     private int mOctaves = 3;
     private float mLacunarity = 2.0f;
     private float mGain = 0.5f;

@@ -3,7 +3,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
-/*
+using NoiseBase = FastNoiseLite;
+
 partial class CustomNoise
 {
     // Ported from the FastNoiseLite project. https://github.com/Auburn/FastNoiseLite
@@ -33,20 +34,20 @@ partial class CustomNoise
     // SOFTWARE.
     
     public int mSeed = 0;
-    public double mFrequency = 0.01;
+    public float mFrequency = 0.01f;
 
     public int mOctaves = 5;
-    public double mLacunarity = 2.0;
-    public double mGain = 0.5;
-    public double mPingPongStrength = 1.5;
+    public float mLacunarity = 2.0f;
+    public float mGain = 0.5f;
+    public float mPingPongStrength = 1.5f;
     
-    public double mFractalBounding = 1.0;
+    public float mFractalBounding = 1.0f;
 
     public void CalculateFractalBounding()
     {
-        double gain = FastAbs(mGain);
-        double amp = gain;
-        double ampFractal = 1.0f;
+        float gain = (float)FastAbs(mGain);
+        float amp = gain;
+        float ampFractal = 1.0f;
         for (int i = 1; i < mOctaves; i++)
         {
             ampFractal += amp;
@@ -55,6 +56,11 @@ partial class CustomNoise
         mFractalBounding = 1 / ampFractal;
     }
     
+    public void SetNoiseType(FastNoiseLite.NoiseType noiseType) { }
+
+    public void SetFractalType(FastNoiseLite.FractalType fractalType) { }
+
+
     static double FastAbs(double f) { return f < 0 ? -f : f; }
     static int FastFloor(double f) { return f >= 0 ? (int)f : (int)f - 1; }
 
@@ -67,18 +73,38 @@ partial class CustomNoise
     const int PrimeY = 1136930381;
     const int PrimeZ = 1720413743;
     
-    public float GenFractalFBm(double x, double y)
+    public void SetSeed(int seed) { mSeed = seed; }
+
+    public void SetFrequency(float frequency) { mFrequency = frequency; }
+
+    public void SetFractalOctaves(int octaves)
+    {
+        mOctaves = octaves;
+        CalculateFractalBounding();
+    }
+    public void SetFractalLacunarity(float lacunarity) { mLacunarity = lacunarity; }
+
+    public void SetFractalGain(float gain)
+    {
+        mGain = gain;
+        CalculateFractalBounding();
+    }
+    
+    public void SetFractalPingPongStrength(float pingPongStrength) { mPingPongStrength = pingPongStrength; }
+
+
+    public float GetNoise(double x, double y)
     {
         x *= mFrequency;
         y *= mFrequency;
         
         int seed = mSeed;
-        double sum = 0.0;
-        double amp = mFractalBounding;
+        float sum = 0.0f;
+        float amp = mFractalBounding;
 
         for (int i = 0; i < mOctaves; i++)
         {
-            double noise = SingleValue(seed++, x, y);
+            float noise = SingleValue(seed++, x, y);
             sum += noise * amp;
 
             x *= mLacunarity;
@@ -86,26 +112,26 @@ partial class CustomNoise
             amp *= mGain;
         }
 
-        return (float)sum;
+        return sum;
     }
     static float PingPong(float t)
     {
         t -= (int)(t * 0.5f) * 2;
         return t < 1 ? t : 2 - t;
     }
-    public float GenFractalPingPong(double x, double y, double z)
+    public float GetNoise(double x, double y, double z)
     {
         x *= mFrequency;
         y *= mFrequency;
         z *= mFrequency;
         
         int seed = mSeed;
-        double sum = 0;
-        double amp = mFractalBounding;
+        float sum = 0;
+        float amp = mFractalBounding;
 
         for (int i = 0; i < mOctaves; i++)
         {
-            float noise = PingPong((float)((SinglePerlin(seed++, x, y, z) + 1) * mPingPongStrength));
+            float noise = PingPong((SinglePerlin(seed++, x, y, z) + 1) * mPingPongStrength);
             sum += (noise - 0.5f) * 2 * amp;
 
             x *= mLacunarity;
@@ -114,9 +140,9 @@ partial class CustomNoise
             amp *= mGain;
         }
 
-        return (float)sum;
+        return sum;
     }
-    double SingleValue(int seed, double x, double y)
+    float SingleValue(int seed, double x, double y)
     {
         int x0 = FastFloor(x);
         int y0 = FastFloor(y);
@@ -223,7 +249,7 @@ partial class CustomNoise
         hash *= 0x27d4eb2d;
         return hash;
     }
-}*/
+}
 
 public partial class VoxelGenerator : RefCounted
 {
@@ -377,7 +403,7 @@ public partial class VoxelGenerator : RefCounted
         return Mathf.Lerp(min_strength, max_strength, f);
     }
     //static FastNoiseLite buh()
-    static FastNoiseLite buh()
+    static NoiseBase buh()
     {
         /*
         var r = new FastNoiseLite();
@@ -387,7 +413,7 @@ public partial class VoxelGenerator : RefCounted
         r.FractalPingPongStrength = 1.5f;
         r.Frequency = 0.02f; // or: 0.02f
         */
-        var r = new FastNoiseLite();
+        var r = new NoiseBase();
         r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
         r.SetFractalType(FastNoiseLite.FractalType.PingPong);
         r.SetFractalOctaves(2);
@@ -395,8 +421,8 @@ public partial class VoxelGenerator : RefCounted
         r.SetFrequency(0.02f);
         return r;
     }
-    static FastNoiseLite custom_noise = new FastNoiseLite();
-    static FastNoiseLite erosion_noise = buh();
+    static NoiseBase custom_noise = new NoiseBase();
+    static NoiseBase erosion_noise = buh();
     static bool erosion_seed_set = false;
     static float get_erosion(Vector3I global_coord, float strength)
     {
