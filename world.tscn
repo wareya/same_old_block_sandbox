@@ -40,7 +40,6 @@ ssao_light_affect = 1.0
 ssao_ao_channel_affect = 1.0
 ssil_enabled = true
 ssil_intensity = 0.5
-ssil_sharpness = 1.0
 ssil_normal_rejection = 0.7
 sdfgi_cascades = 5
 sdfgi_min_cell_size = 0.25
@@ -111,8 +110,11 @@ environment = SubResource("Environment_3qx6c")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 2.36717, -1.64375)
-light_angular_distance = 0.5
 shadow_enabled = true
+directional_shadow_split_1 = 0.05
+directional_shadow_split_2 = 0.1
+directional_shadow_split_3 = 0.25
+directional_shadow_max_distance = 200.0
 
 [node name="FPS" type="Label" parent="."]
 offset_right = 40.0

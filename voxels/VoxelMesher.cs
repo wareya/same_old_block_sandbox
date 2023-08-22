@@ -95,10 +95,12 @@ public partial class VoxelMesher : RefCounted
         new int[]{110, 110, 110}, // grass a
         new int[]{111, 111, 111}, // grass b
         new int[]{112, 112, 112}, // grass c
+        // 10
         new int[]{80, 80, 80}, // flower a
         new int[]{81, 81, 81}, // flower b
         new int[]{82, 82, 82}, // flower c
         new int[]{83, 83, 83}, // flower d
+        new int[]{5, 5, 5}, // sand
     };
     static HashSet<int> vox_alphatest = new HashSet<int>{
         5,

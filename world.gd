@@ -121,7 +121,7 @@ func _ready() -> void:
     print(world_seed)
     print(base_noise.seed)
     
-    for y in range(-range_v, range_v+1):
+    for y in range(-range_v_down, range_v_up+1):
         for z in range(-_spawn_range, _spawn_range+1):
             for x in range(-_spawn_range, _spawn_range+1):
                 var c = Vector3i(x, y, z)*Voxels.chunk_size
@@ -365,10 +365,14 @@ func dynamic_world_loop():
 # 1024 = 32 chunk distance
 
 #var range_h = 32/Voxels.chunk_size/2
-#var range_h = 512/Voxels.chunk_size/2
-var range_h = 256/Voxels.chunk_size/2
+var range_h = 512/Voxels.chunk_size/2
+#var range_h = 256/Voxels.chunk_size/2
 #var range_v = 64/Voxels.chunk_size/2
-var range_v = 128/Voxels.chunk_size/2
+#var range_v = 128/Voxels.chunk_size/2
+var range_v_down = 128/Voxels.chunk_size
+#var range_v_down = 64/Voxels.chunk_size
+var range_v_up = 256/Voxels.chunk_size
+#var range_v_up = 64/Voxels.chunk_size
 
 var _found_unloadable_chunks = []
 var _find_chunks_prev_player_chunk_2 = null
@@ -421,7 +425,7 @@ func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
         
         _find_chunks_unloaded_coords = []
         chunk_table_mutex.lock()
-        for y in range(-range_v, range_v+1):
+        for y in range(-range_v_down, range_v_up+1):
             for z in range(-range_h, range_h+1):
                 for x in range(-range_h, range_h+1):
                     if Vector2i(x, z).length() > range_h-0.5:
@@ -513,9 +517,8 @@ func dynamically_load_world(player_chunk, facing_dir):
             else:
                 vox = all_chunks[c_coord]
             
-            var y_limit = range_v
             for y in range(-1, 2):
-                if c_coord.y/Voxels.chunk_size+y < -y_limit or c_coord.y/Voxels.chunk_size+y > y_limit:
+                if c_coord.y/Voxels.chunk_size + y < -range_v_down or c_coord.y/Voxels.chunk_size + y > range_v_up:
                     continue
                 for z in range(-1, 2):
                     for x in range(-1, 2):
@@ -550,9 +553,10 @@ func add_and_load_all(chunks):
     #chunk_table_mutex.lock()
     
     for chunk in chunks:
-        var coord = chunk[0].chunk_position
-        if not coord in f_index_table:
-            just_chunks.push_back(chunk[0])
+        if is_instance_valid(chunk[0]):
+            var coord = chunk[0].chunk_position
+            if not coord in f_index_table:
+                just_chunks.push_back(chunk[0])
     
     #chunk_table_mutex.unlock()
     

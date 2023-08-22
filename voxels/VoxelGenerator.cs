@@ -137,74 +137,90 @@ public partial class VoxelGenerator : RefCounted
         else
             return erosion_noise.GetNoise(x*(double)freq, y*(double)freq, z*(double)freq);
     }
-    public static (int, int) height_at_global(int x, int z)
+    public static (int, int, int) height_at_global(int x, int z)
     {
         x += chunk_size/2;
         z += chunk_size/2;
         
-        float height = get_noise_2d_adjusted(x, z);
+        var height_freq = 0.25f;
+        
+        float height = get_noise_2d_adjusted(x, z, height_freq);
+        
+        // extra grit
+        //float grit_freq = 21.4f;
+        //float grit_freq = 5.4f;
+        //float grit_scale = 0.01f;
+        
+        //height += get_noise_2d_adjusted(x, z, grit_freq, 512, 11) * grit_scale;
         
         float steepness_preoffset_freq = 0.5f;
-        
         float steepness_preoffset = get_noise_2d_adjusted(x, -1-z, steepness_preoffset_freq, 0, -1130) * 0.75f;
         
         float steepness_freq = 0.5f;
         float steepness_min = 0.2f;
-        float steepness_max = 64.0f;
-        float steepness_exp = 1.0f;
+        float steepness_max = 128.0f;
+        float steepness_exp = 6.0f;
         
         float steepness = get_noise_2d_adjusted(x, -1-z, steepness_freq, 100)*0.5f + 0.5f;
         steepness = Mathf.Lerp(steepness_min, steepness_max, Mathf.Pow(steepness, steepness_exp));
         
         height = _adjust_val(height + steepness_preoffset, steepness) - steepness_preoffset;
         
-        // extra grit
-        float grit_freq = 0.4f;
-        float grit_scale = 1.0f;
-        
-        height += get_noise_2d_adjusted(x, z, grit_freq, 512, 11) * grit_scale;
-        
-        float height_scale_freq = 0.5f;
+        float height_scale_freq = 0.2f;
         float height_scale_min = 3.0f;
-        float height_scale_max = 64.0f;
+        //float height_scale_max = 64.0f;
+        float height_scale_max = 192.0f;
         float height_scale_exp = 5.0f;
         
         float height_scale = get_noise_2d_adjusted(x, z, height_scale_freq, 0, 154)*0.5f + 0.5f;
         height = height * Mathf.Lerp(height_scale_min, height_scale_max, Mathf.Pow(height_scale, height_scale_exp));
         
-        float height_noise_freq = 2.4f;
-        float height_noise_scale = 5.0f;
+        float height_noise_freq = 5.4f;
+        float height_noise_scale = 2.0f;
         height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
         float rock_freq = 2.6f;
-        float rock_scale = 5.0f;
+        float rock_scale = 4.0f;
         
         // x/z inversion is deliberate
-        float rock_offset = get_noise_2d_adjusted(z, x, rock_freq, 151, 11)*rock_scale - 2.0f;
+        float rock = get_noise_2d_adjusted(z, x, rock_freq, 151, 11)*rock_scale - 3.0f;
         
-        height = Mathf.Lerp(height, Mathf.Clamp(height, -32.0f, 32.0f), 0.5f);
-        height = Mathf.Clamp(height, -63.0f, 63.0f);
+        float sand_freq = 2.6f;
+        float sand_scale = 3.0f;
         
+        // x/z inversion is deliberate
+        float sand = get_noise_2d_adjusted(z, x, sand_freq, 15, 61011)*sand_scale + 1.5f;
+        
+        var height_limit_soft = 128.0f;
+        var height_limit_hard = 192.0f;
+        
+        var depth_limit_soft = -32.0f;
+        var depth_limit_hard = -60.0f;
+        
+        height = Mathf.Lerp(height, Mathf.Clamp(height, depth_limit_soft, height_limit_soft), 0.5f);
+        height = Mathf.Clamp(height, depth_limit_hard, height_limit_hard);
+        
+        rock = Mathf.Round(rock + height);
         height = Mathf.Round(height);
-        rock_offset = Mathf.Round(rock_offset);
+        sand = Mathf.Round(sand);
         
-        return ((int)height, (int)rock_offset);
+        return ((int)height, (int)rock, (int)sand);
     }
     public int pub_height_at_global(Vector3I global_coord)
     {
         return height_at_global(global_coord.X, global_coord.Z).Item1;
     }
-    static float erosion_strength_at_global(Vector3I global_coord)
+    static float erosion_strength_at_global(int x, int z)
     {
-        global_coord.X += chunk_size/2;
-        global_coord.Z += chunk_size/2;
+        x += chunk_size/2;
+        z += chunk_size/2;
         
         var erosion_info_freq = 0.1f;
         var min_strength = 0.0f;
         var max_strength = 96.0f;
         
-        float f = get_noise_2d_adjusted(global_coord.X, -global_coord.Z, erosion_info_freq, 0, -1100)*0.5f + 0.5f;
-        f *= f;
+        float f = get_noise_2d_adjusted(x, -z, erosion_info_freq, 0, -1100)*0.5f + 0.5f;
+        f *= Math.Abs(f);
         return Mathf.Lerp(min_strength, max_strength, f);
     }
     //static FastNoiseLite buh()
@@ -230,10 +246,10 @@ public partial class VoxelGenerator : RefCounted
     // WARNING: for performance reasons, this does a coarse search.
     // its purpose is to find a y value that's solid but has air above it, and is close to the surface.
     // it is not 100% guaranteed to be exposed to the sky.
-    public static (int, int) true_height_at_global(Noise noiser, Vector3I global_coord)
+    
+    static int erode_height_at_global(int h, int x, int z)
     {
-        var erosion_strength = erosion_strength_at_global(global_coord);
-        var (h, rock) = height_at_global(global_coord.X, global_coord.Z);
+        var erosion_strength = erosion_strength_at_global(x, z);
         var return_h = h;
         var erosion = 0.0f;
         int y = h;
@@ -241,7 +257,7 @@ public partial class VoxelGenerator : RefCounted
         {
             y -= 4;
             return_h = y;
-            erosion = get_erosion(new Vector3I(global_coord.X, y, global_coord.Z), erosion_strength);
+            erosion = get_erosion(new Vector3I(x, y, z), erosion_strength);
             if (h - y + erosion >= 0.0f)
                 break;
         }
@@ -249,23 +265,31 @@ public partial class VoxelGenerator : RefCounted
         while (y < end)
         {
             y += 1;
-            var new_erosion = get_erosion(new Vector3I(global_coord.X, y, global_coord.Z), erosion_strength);
+            var new_erosion = get_erosion(new Vector3I(x, y, z), erosion_strength);
             if (h - y + new_erosion < 0.0f)
                 break;
             return_h = y;
             erosion = new_erosion;
         }
-        rock = rock + (h - return_h) + (int)(erosion*0.9);
-        return (return_h, rock);
+        return return_h;
     }
-    public int pub_true_height_at_global(Noise noiser, Vector3I global_coord)
+    
+    public static (int, int, int) true_height_at_global(int x, int z)
     {
-        return true_height_at_global(noiser, global_coord).Item1;
+        var (h, rock, sand) = height_at_global(x, z);
+        var eroded_h = erode_height_at_global(h, x, z);
+        var diff_h = h - eroded_h;
+        rock -= (int)(diff_h*0.9f);
+        return (eroded_h, rock, sand);
+    }
+    public int pub_true_height_at_global(Vector3I global_coord)
+    {
+        return true_height_at_global(global_coord.X, global_coord.Z).Item1;
     }
     public static int chunk_size = 16;
     public static Vector3I chunk_vec3i = new Vector3I(chunk_size, chunk_size, chunk_size);
     public static Aabb bounds = new Aabb(new Vector3(), Vector3.One*(chunk_size-1));
-    static List<(Vector3I, int, uint)> get_tree_coords(Vector3I chunk_position, Noise noiser, int min, int max, int buffer, bool dirt_only = true)
+    static List<(Vector3I, int, uint)> get_tree_coords(Vector3I chunk_position, int min, int max, int buffer, bool dirt_only = true)
     {
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
@@ -281,10 +305,11 @@ public partial class VoxelGenerator : RefCounted
             var tall = rng.RandiRange(4, 6);
             var grunge = rng.Randi();
             
-            var (height, rock_part) = true_height_at_global(noiser, new Vector3I(x, 0, z) + offset);
-            var is_rock = rock_part > 1.0f;
+            var (height, rock, sand) = true_height_at_global(x + offset.X, z + offset.Z);
+            var is_rock = rock > height;
+            var is_sand = sand > height;
             
-            if (height >= 0 && !is_rock)
+            if (height >= 0 && !is_rock && !is_sand)
             {
                 var c_3d = new Vector3I(x, height+1 - chunk_position.Y + chunk_size/2, z);
                 trees.Add((c_3d, tall, grunge));
@@ -293,7 +318,7 @@ public partial class VoxelGenerator : RefCounted
         
         return trees;
     }
-    static List<Vector3I> get_grass_coords(Vector3I chunk_position, Noise noiser, int min, int max, bool dirt_only = true)
+    static List<Vector3I> get_grass_coords(Vector3I chunk_position, int min, int max, bool dirt_only = true)
     {
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
@@ -307,10 +332,11 @@ public partial class VoxelGenerator : RefCounted
             var x = rng.RandiRange(0, chunk_size-1);
             var z = rng.RandiRange(0, chunk_size-1);
             
-            var (height, rock_part) = true_height_at_global(noiser, new Vector3I(x, 0, z) + offset);
-            var is_rock = rock_part > 1.0f;
+            var (height, rock, sand) = true_height_at_global(x + offset.X, z + offset.Z);
+            var is_rock = rock > height;
+            var is_sand = sand > height;
             
-            if (height >= 0 && !is_rock)
+            if (height >= 0 && !is_rock && !is_sand)
                 coords.Add(new Vector3I(x, height+1 - chunk_position.Y + chunk_size/2, z));
         }
         
@@ -345,19 +371,29 @@ public partial class VoxelGenerator : RefCounted
             foreach (var x in Enumerable.Range(0, chunk_size))
             {
                 var c_2d = new Vector2I(x, z) + offset_2d;
-                var (height, rock_offset) = height_at_global(c_2d.X, c_2d.Y);
+                var (height, rock_height, sand_height) = height_at_global(c_2d.X, c_2d.Y);
                 
-                var h_i = coord_to_index(new Vector3I(x, 0, z));
+                var eroded_height = erode_height_at_global(height, c_2d.X, c_2d.Y);
                 
-                var erosion_strength = erosion_strength_at_global(new Vector3I(x+offset.X, 0, z+offset.Z));
+                var diff_h = height - eroded_height;
+                rock_height -= (int)(diff_h*0.9f);
+                
+                var erosion_strength = erosion_strength_at_global(x + offset.X, z + offset.Z);
                 var erosion = get_erosion(new Vector3I(x, 0, z) + offset, erosion_strength);
                 
                 var max_y = Math.Clamp((int)(height - offset.Y) + 1, 0, chunk_size);
                 if (offset.Y < 0)
                     max_y = chunk_size;
                 
+                var i = coord_to_index(new Vector3I(x, 0, z));
                 foreach (var y in Enumerable.Range(0, max_y))
                 {
+                    if (height - (y + offset.Y) > erosion_strength)
+                    {
+                        voxels[i] = 3; // rock
+                        i += chunk_size*chunk_size;
+                        continue;
+                    }
                     var c = new Vector3I(x, y, z) + offset;
         
                     var base_noise = height - c.Y;
@@ -367,8 +403,6 @@ public partial class VoxelGenerator : RefCounted
                     erosion = get_erosion(c + Vector3I.Up, erosion_strength);
                     noise_above += erosion;
                     
-                    var rock_noise = base_noise + rock_offset + (int)(erosion*0.9);
-                    
                     byte vox = 0;
                     if (noise < 0.0f)
                         vox = 0; // air
@@ -377,20 +411,28 @@ public partial class VoxelGenerator : RefCounted
                     else
                         vox = 2; // dirt
                     
-                    if (vox != 0 && rock_noise > 1.0f)
+                    if (vox != 0 && rock_height > c.Y)
                         vox = 3; // rock
+                    
+                    if ((vox == 1 || vox == 2) && sand_height > c.Y)
+                        vox = 14; // sand
                     
                     if (vox == 0 && c.Y <= 0.0f)
                         vox = 6; // water
                     
-                    var i = h_i + y*chunk_size*chunk_size;
-                    
                     voxels[i] = vox;
+                    i += chunk_size*chunk_size;
                 }
             }
         }
         
-        var tree_coords = get_tree_coords(chunk_position, noiser, 3, 6, 2);
+        var biome_foliage = get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
+        
+        var biome_trees = Mathf.Clamp(Mathf.Lerp(-0.5f, 1.2f, biome_foliage), 0.0f, 1.0f);
+        var tree_min_count = (int)(5*biome_trees);
+        var tree_max_count = (int)(9*biome_trees);
+        
+        var tree_coords = get_tree_coords(chunk_position, tree_min_count, tree_max_count, 2);
         
         foreach (var (coord, tall, grunge) in tree_coords)
         {
@@ -436,7 +478,11 @@ public partial class VoxelGenerator : RefCounted
             }
         }
         
-        var grass = get_grass_coords(chunk_position, noiser, 48, 96);
+        var biome_grass = Mathf.Clamp(Mathf.Lerp(0.05f, 1.2f, biome_foliage), 0.0f, 1.0f);
+        var grass_min_count = (int)(48*biome_grass);
+        var grass_max_count = (int)(96*biome_grass);
+        
+        var grass = get_grass_coords(chunk_position, grass_min_count, grass_max_count);
         
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
