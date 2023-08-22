@@ -9,6 +9,8 @@ shader_type spatial;
 render_mode blend_mix,depth_draw_opaque,cull_back,diffuse_lambert,specular_schlick_ggx;
 uniform sampler2DArray texture_albedo : source_color,filter_nearest_mipmap_anisotropic,repeat_enable;
 
+global uniform ivec3 world_origin;
+
 varying flat int bitmask;
 varying flat int index;
 
@@ -41,6 +43,8 @@ void vertex()
     
     vec3 sway_pos = VERTEX;
     vec3 world_pos_wrap = fract(NODE_POSITION_WORLD/16.0/16.0)*16.0*16.0;
+    vec3 world_pos_wrap_2 = vec3(world_origin - world_origin/256*256);
+    world_pos_wrap += world_pos_wrap_2;
     
     sway_pos += world_pos_wrap;
     

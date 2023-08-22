@@ -366,6 +366,7 @@ func dynamic_world_loop():
 
 #var range_h = 32/Voxels.chunk_size/2
 var range_h = 512/Voxels.chunk_size/2
+#var range_h = 256/Voxels.chunk_size/2
 #var range_v = 64/Voxels.chunk_size/2
 var range_v = 128/Voxels.chunk_size/2
 
@@ -462,6 +463,7 @@ func apply_chunks_offset():
     if player_chunk_coord != world_origin:
         var diff = player_chunk_coord - world_origin
         world_origin = player_chunk_coord
+        RenderingServer.global_shader_parameter_set("world_origin", world_origin)
         print("new world offset: ", world_origin)
         var player = DummySingleton.get_tree().get_first_node_in_group("Player")
         player.global_position -= Vector3(diff)
@@ -545,16 +547,14 @@ func add_and_load_all(chunks):
     
     var just_chunks = []
     
-    chunk_table_mutex.lock()
+    #chunk_table_mutex.lock()
     
-    for coord in all_chunks.keys():
+    for chunk in chunks:
+        var coord = chunk[0].chunk_position
         if not coord in f_index_table:
-            # FIXME: had an "invalid get index" error here that implies a threading problem
-            # added .keys() above to try to fix it
-            # we'll find out later if it did!
-            just_chunks.push_back(all_chunks[coord])
+            just_chunks.push_back(chunk[0])
     
-    chunk_table_mutex.unlock()
+    #chunk_table_mutex.unlock()
     
     trigger_save(just_chunks)
     

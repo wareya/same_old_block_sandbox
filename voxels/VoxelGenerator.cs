@@ -67,7 +67,7 @@ public partial class VoxelGenerator : RefCounted
     
     static float Lerp(float a, float b, float t) { return a + t * (b - a); }
     // gets 2d value noise
-    public static float get_noise_2d_adjusted(Noise noiser, int x, int z, float freq = 1.0f, int x_offset = 0, int z_offset = 0)
+    public static float get_noise_2d_adjusted(int x, int z, float freq = 1.0f, int x_offset = 0, int z_offset = 0)
     {
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
@@ -77,7 +77,7 @@ public partial class VoxelGenerator : RefCounted
             return custom_noise.GetNoise(x*(double)freq + x_offset, z*(double)freq + z_offset);
     }
     // gets 3d perlin noise
-    public static float get_noise_3d_adjusted(Noise noiser, int x, int y, int z, float freq = 1.0f)
+    public static float get_noise_3d_adjusted(int x, int y, int z, float freq = 1.0f)
     {
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
@@ -86,23 +86,23 @@ public partial class VoxelGenerator : RefCounted
         else
             return erosion_noise.GetNoise(x*(double)freq, y*(double)freq, z*(double)freq);
     }
-    public static (int, int) height_at_global(Noise noiser, int x, int z)
+    public static (int, int) height_at_global(int x, int z)
     {
         x += chunk_size/2;
         z += chunk_size/2;
         
-        float height = get_noise_2d_adjusted(noiser, x, z);
+        float height = get_noise_2d_adjusted(x, z);
         
         float steepness_preoffset_freq = 0.5f;
         
-        float steepness_preoffset = get_noise_2d_adjusted(noiser, x, -1-z, steepness_preoffset_freq, 0, -1130) * 0.75f;
+        float steepness_preoffset = get_noise_2d_adjusted(x, -1-z, steepness_preoffset_freq, 0, -1130) * 0.75f;
         
         float steepness_freq = 0.5f;
         float steepness_min = 0.2f;
         float steepness_max = 64.0f;
         float steepness_exp = 1.0f;
         
-        float steepness = get_noise_2d_adjusted(noiser, x, -1-z, steepness_freq, 100)*0.5f + 0.5f;
+        float steepness = get_noise_2d_adjusted(x, -1-z, steepness_freq, 100)*0.5f + 0.5f;
         steepness = Mathf.Lerp(steepness_min, steepness_max, Mathf.Pow(steepness, steepness_exp));
         
         height = _adjust_val(height + steepness_preoffset, steepness) - steepness_preoffset;
@@ -111,25 +111,25 @@ public partial class VoxelGenerator : RefCounted
         float grit_freq = 0.4f;
         float grit_scale = 1.0f;
         
-        height += get_noise_2d_adjusted(noiser, x, z, grit_freq, 512, 11) * grit_scale;
+        height += get_noise_2d_adjusted(x, z, grit_freq, 512, 11) * grit_scale;
         
         float height_scale_freq = 0.5f;
         float height_scale_min = 3.0f;
         float height_scale_max = 64.0f;
         float height_scale_exp = 5.0f;
         
-        float height_scale = get_noise_2d_adjusted(noiser, x, z, height_scale_freq, 0, 154)*0.5f + 0.5f;
+        float height_scale = get_noise_2d_adjusted(x, z, height_scale_freq, 0, 154)*0.5f + 0.5f;
         height = height * Mathf.Lerp(height_scale_min, height_scale_max, Mathf.Pow(height_scale, height_scale_exp));
         
         float height_noise_freq = 2.4f;
         float height_noise_scale = 5.0f;
-        height += get_noise_2d_adjusted(noiser, x, z, height_noise_freq, 51, 1301) * height_noise_scale;
+        height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
         float rock_freq = 2.6f;
         float rock_scale = 5.0f;
         
         // x/z inversion is deliberate
-        float rock_offset = get_noise_2d_adjusted(noiser, z, x, rock_freq, 151, 11)*rock_scale - 2.0f;
+        float rock_offset = get_noise_2d_adjusted(z, x, rock_freq, 151, 11)*rock_scale - 2.0f;
         
         height = Mathf.Lerp(height, Mathf.Clamp(height, -32.0f, 32.0f), 0.5f);
         height = Mathf.Clamp(height, -63.0f, 63.0f);
@@ -139,11 +139,11 @@ public partial class VoxelGenerator : RefCounted
         
         return ((int)height, (int)rock_offset);
     }
-    public int pub_height_at_global(Noise noiser, Vector3I global_coord)
+    public int pub_height_at_global(Vector3I global_coord)
     {
-        return height_at_global(noiser, global_coord.X, global_coord.Z).Item1;
+        return height_at_global(global_coord.X, global_coord.Z).Item1;
     }
-    static float erosion_strength_at_global(Noise noiser, Vector3I global_coord)
+    static float erosion_strength_at_global(Vector3I global_coord)
     {
         global_coord.X += chunk_size/2;
         global_coord.Z += chunk_size/2;
@@ -152,21 +152,13 @@ public partial class VoxelGenerator : RefCounted
         var min_strength = 0.0f;
         var max_strength = 96.0f;
         
-        float f = get_noise_2d_adjusted(noiser, global_coord.X, -global_coord.Z, erosion_info_freq, 0, -1100)*0.5f + 0.5f;
+        float f = get_noise_2d_adjusted(global_coord.X, -global_coord.Z, erosion_info_freq, 0, -1100)*0.5f + 0.5f;
         f *= f;
         return Mathf.Lerp(min_strength, max_strength, f);
     }
     //static FastNoiseLite buh()
     static NoiseType buh()
     {
-        /*
-        var r = new FastNoiseLite();
-        r.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin; // or: value
-        r.FractalType = FastNoiseLite.FractalTypeEnum.PingPong;
-        r.FractalOctaves = 2;
-        r.FractalPingPongStrength = 1.5f;
-        r.Frequency = 0.02f; // or: 0.02f
-        */
         var r = new NoiseType();
         r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
         r.SetFractalType(FastNoiseLite.FractalType.PingPong);
@@ -181,8 +173,7 @@ public partial class VoxelGenerator : RefCounted
     static float get_erosion(Vector3I global_coord, float strength)
     {
         var out_scale = Mathf.Clamp(1.0f + global_coord.Y/16.0f, 0.0f, 1.0f);
-        //var ret = Mathf.Min(0.0f, get_noise_3d_adjusted(erosion_noise, global_coord.X, global_coord.Y, global_coord.Z));
-        var ret = Mathf.Min(0.0f, get_noise_3d_adjusted(null, global_coord.X, global_coord.Y, global_coord.Z));
+        var ret = Mathf.Min(0.0f, get_noise_3d_adjusted(global_coord.X, global_coord.Y, global_coord.Z));
         return Mathf.Round(ret*Mathf.Abs(ret)*strength*out_scale);
     }
     // WARNING: for performance reasons, this does a coarse search.
@@ -190,8 +181,8 @@ public partial class VoxelGenerator : RefCounted
     // it is not 100% guaranteed to be exposed to the sky.
     public static (int, int) true_height_at_global(Noise noiser, Vector3I global_coord)
     {
-        var erosion_strength = erosion_strength_at_global(noiser, global_coord);
-        var (h, rock) = height_at_global(noiser, global_coord.X, global_coord.Z);
+        var erosion_strength = erosion_strength_at_global(global_coord);
+        var (h, rock) = height_at_global(global_coord.X, global_coord.Z);
         var return_h = h;
         var erosion = 0.0f;
         int y = h;
@@ -303,11 +294,11 @@ public partial class VoxelGenerator : RefCounted
             foreach (var x in Enumerable.Range(0, chunk_size))
             {
                 var c_2d = new Vector2I(x, z) + offset_2d;
-                var (height, rock_offset) = height_at_global(noiser, c_2d.X, c_2d.Y);
+                var (height, rock_offset) = height_at_global(c_2d.X, c_2d.Y);
                 
                 var h_i = coord_to_index(new Vector3I(x, 0, z));
                 
-                var erosion_strength = erosion_strength_at_global(noiser, new Vector3I(x+offset.X, 0, z+offset.Z));
+                var erosion_strength = erosion_strength_at_global(new Vector3I(x+offset.X, 0, z+offset.Z));
                 var erosion = get_erosion(new Vector3I(x, 0, z) + offset, erosion_strength);
                 
                 var max_y = Math.Clamp((int)(height - offset.Y) + 1, 0, chunk_size);
