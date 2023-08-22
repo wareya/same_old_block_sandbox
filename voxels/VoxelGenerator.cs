@@ -4,6 +4,57 @@ using System.Linq;
 using System.Collections.Generic;
 
 using NoiseType = FastNoiseLite;
+//using NoiseType = GodotNoiseWrapper;
+
+// used only when developing/debugging
+// do not use for production, use FastNoiseLite.cs instead
+class GodotNoiseWrapper
+{
+    Godot.FastNoiseLite noise = new Godot.FastNoiseLite();
+    
+    public float GetNoise(double x, double y)
+    {
+        return noise.GetNoise2D((float)x, (float)y);
+    }
+    public float GetNoise(double x, double y, double z)
+    {
+        return noise.GetNoise3D((float)x, (float)y, (float)z);
+    }
+    
+    public void SetSeed(int seed)
+    {
+        noise.Seed = seed;
+    }
+    public void SetFrequency(float freq)
+    {
+        noise.Frequency = freq;
+    }
+    public void SetNoiseType(FastNoiseLite.NoiseType type)
+    {
+        noise.NoiseType = (Godot.FastNoiseLite.NoiseTypeEnum)type;
+    }
+    public void SetFractalType(FastNoiseLite.FractalType type)
+    {
+        noise.FractalType = (Godot.FastNoiseLite.FractalTypeEnum)type;
+    }
+
+    public void SetFractalOctaves(int octaves)
+    {
+        noise.FractalOctaves = octaves;
+    }
+    public void SetFractalLacunarity(float lacunarity)
+    {
+        noise.FractalLacunarity = lacunarity;
+    }
+    public void SetFractalPingPongStrength(float strength)
+    {
+        noise.FractalPingPongStrength = strength;
+    }
+    public void SetFractalGain(float gain)
+    {
+        noise.FractalGain = gain;
+    }
+}
 
 public partial class VoxelGenerator : RefCounted
 {

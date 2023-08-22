@@ -365,8 +365,8 @@ func dynamic_world_loop():
 # 1024 = 32 chunk distance
 
 #var range_h = 32/Voxels.chunk_size/2
-var range_h = 512/Voxels.chunk_size/2
-#var range_h = 256/Voxels.chunk_size/2
+#var range_h = 512/Voxels.chunk_size/2
+var range_h = 256/Voxels.chunk_size/2
 #var range_v = 64/Voxels.chunk_size/2
 var range_v = 128/Voxels.chunk_size/2
 
