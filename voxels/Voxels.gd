@@ -21,11 +21,9 @@ func generate():
     side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
     side_cache.fill(0xFF)
     
-    var offset = -chunk_vec3i/2 + chunk_position
-    var offset_2d = Vector2i(offset.x, offset.z)
     var noiser = world.base_noise
     
-    voxels = VoxelGenerator._Generate(noiser, chunk_position, offset)
+    voxels = VoxelGenerator._Generate(noiser, chunk_position)
 
 
 var meshinst_child = MeshInstance3D.new()

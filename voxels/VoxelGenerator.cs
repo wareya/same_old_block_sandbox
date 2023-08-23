@@ -396,8 +396,10 @@ public partial class VoxelGenerator : RefCounted
     {
         return coord.Y*chunk_size_h*chunk_size_h + coord.Z*chunk_size_h + coord.X;
     }
-    public byte[] _Generate(Noise noiser, Vector3I chunk_position, Vector3I offset)
+    (int, byte)[] chunk_info = new (int, byte)[chunk_size_h*chunk_size_h];
+    public byte[] _Generate_Terrain_Only(Noise noiser, Vector3I chunk_position)
     {
+        var offset = -chunk_vec3i/2 + chunk_position;
         var offset_2d = new Vector2I(offset.X, offset.Z);
         
         if (!erosion_seed_set)
@@ -414,8 +416,6 @@ public partial class VoxelGenerator : RefCounted
             erosion_noise.SetSeed(n.Seed+2);
             erosion_seed_set = true;
         }
-        
-        var chunk_info = new (int, byte)[chunk_size_h*chunk_size_h];
         
         var voxels = new byte[chunk_size_h*chunk_size_h*chunk_size_v];
         var prev_height_x = new int[chunk_size_h];
@@ -524,6 +524,12 @@ public partial class VoxelGenerator : RefCounted
                 }
             }
         }
+        
+        return voxels;
+    }
+    public byte[] _Generate(Noise noiser, Vector3I chunk_position)
+    {
+        var voxels = _Generate_Terrain_Only(noiser, chunk_position);
         
         var biome_foliage = 1.0f;//get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
         
