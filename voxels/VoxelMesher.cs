@@ -158,15 +158,15 @@ public partial class VoxelMesher : RefCounted
         return vox_mesh.Contains(vox);
     }
     
-    byte[] bitmask_cache = new byte[VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*VoxelGenerator.chunk_size*6];
+    byte[] bitmask_cache = new byte[VoxelGenerator.chunk_size_h*VoxelGenerator.chunk_size_h*VoxelGenerator.chunk_size_v*6];
     
     public byte[] side_cache;
     
     static int calc_index(Vector3I coord)
     {
         return (
-            coord.Y*VoxelGenerator.chunk_size*VoxelGenerator.chunk_size +
-            coord.Z*VoxelGenerator.chunk_size +
+            coord.Y*VoxelGenerator.chunk_size_h*VoxelGenerator.chunk_size_h +
+            coord.Z*VoxelGenerator.chunk_size_h +
             coord.X );
     }
     
@@ -179,7 +179,6 @@ public partial class VoxelMesher : RefCounted
     
     Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
     {
-        int chunk_size = VoxelGenerator.chunk_size;
         var bounds = VoxelGenerator.bounds;
         
         var voxel_same_type = bool (int vox, int target_type) =>
@@ -204,7 +203,7 @@ public partial class VoxelMesher : RefCounted
                 var neighbor_index = calc_index(local_coord);
                 return voxels[neighbor_index];
             }
-            var chunk_coord = get_chunk_coord(global_coord - Vector3I.One*chunk_size/2);
+            var chunk_coord = get_chunk_coord(global_coord - VoxelGenerator.chunk_vec3i/2);
             if (neighbors.ContainsKey(chunk_coord))
             {
                 var neighbor_voxels = neighbors[chunk_coord];
@@ -282,13 +281,16 @@ public partial class VoxelMesher : RefCounted
         
         var start = Time.GetTicksUsec();
         
-        var offs = Vector3.One*chunk_size/2.0f;
+        var offs = (Vector3)VoxelGenerator.chunk_vec3i/2.0f;
         
-        foreach (var y in Enumerable.Range(0, chunk_size))
+        int chunk_size_h = VoxelGenerator.chunk_size_h;
+        int chunk_size_v = VoxelGenerator.chunk_size_v;
+        
+        foreach (var y in Enumerable.Range(0, chunk_size_v))
         {
-            var prev_x = new (int, byte, int[], byte[], (int, int)[], bool, int[])[chunk_size];
-            var prev_x_need_clear = new bool[chunk_size];
-            foreach (var i in Enumerable.Range(0, chunk_size))
+            var prev_x = new (int, byte, int[], byte[], (int, int)[], bool, int[])[chunk_size_h];
+            var prev_x_need_clear = new bool[chunk_size_h];
+            foreach (var i in Enumerable.Range(0, chunk_size_h))
             {
                 prev_x[i] = (-1, 0x00, new int[]{0, 0}, new byte[]{0, 0, 0, 0, 0, 0}, new (int, int)[]{(0,0), (0,0), (0,0), (0,0)}, false, new int[]{0, 0});
                 prev_x_need_clear[i] = false;
@@ -297,7 +299,7 @@ public partial class VoxelMesher : RefCounted
             var prev_i = new int[]{0, 0, 0, 0};
             var prev_col_i = new int[]{0, 0, 0, 0};
             
-            foreach (var z in Enumerable.Range(0, chunk_size))
+            foreach (var z in Enumerable.Range(0, chunk_size_h))
             {
                 var prev_solid = false;
                 var prev_type = -1;
@@ -316,7 +318,7 @@ public partial class VoxelMesher : RefCounted
                 
                 var prev_side_val = new (int, int)[]{(0,0), (0,0), (0,0), (0,0)};
                 
-                foreach (var x in Enumerable.Range(0, chunk_size))
+                foreach (var x in Enumerable.Range(0, chunk_size_h))
                 {
                     var local_coord = new Vector3I(x, y, z);
                     var vox_index = calc_index(local_coord);

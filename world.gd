@@ -15,7 +15,9 @@ var backing_file : FileAccess = null
 func _init():
     randomize()
     world_seed = randi()
-    world_seed = 124
+    #world_seed = 124
+    #world_seed = 6143
+    world_seed = 733
     #world_seed = 578
     #world_seed = 613
     print(world_seed)
@@ -24,7 +26,7 @@ func _init():
 var f_access_mutex = Mutex.new()
 var f_index_table = {}
 
-static var f_chunk_bytes = Voxels.chunk_size*Voxels.chunk_size*Voxels.chunk_size
+static var f_chunk_bytes = Voxels.chunk_size_h*Voxels.chunk_size_h*Voxels.chunk_size_v
 static var f_chunk_header_bytes = 8*4 # three signed i64s for position plus a padding/metadata i64
 
 var world_seed = 16
@@ -124,7 +126,7 @@ func _ready() -> void:
     for y in range(-range_v_down, range_v_up+1):
         for z in range(-_spawn_range, _spawn_range+1):
             for x in range(-_spawn_range, _spawn_range+1):
-                var c = Vector3i(x, y, z)*Voxels.chunk_size
+                var c = Vector3i(x, y, z)*Voxels.chunk_vec3i
                 
                 var vox = load_chunk(c)
                 all_chunks[c] = vox
@@ -154,28 +156,31 @@ func place_player():
     var good_z = 0
     var _range = _spawn_range + 0.5
     for _i in attempts:
-        var z = randi_range(-Voxels.chunk_size*_range, Voxels.chunk_size*_range)
-        var x = randi_range(-Voxels.chunk_size*_range, Voxels.chunk_size*_range)
+        var z = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
+        var x = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
         
-        land_height = -1
+        land_height = -1000
         var found_air = false
-        for y in range(Voxels.chunk_size*1.5 - 2, -Voxels.chunk_size, -1):
+        
+        var world_top = (range_h+0.5)*Voxels.chunk_size_v
+        var start_h = Voxels.VoxelGenerator.pub_height_at_global(Vector3i(x, 0, z))
+        
+        print("testing ", start_h, " to ", world_top)
+        
+        for y in range(start_h-1, world_top):
             var vox = get_block(Vector3i(x, y, z))
             var type = VoxelMesher.vox_get_type_pub(vox)
-            if type == 2:
-                break
-            elif vox == 0:
-                found_air = true
-                continue
-            elif (type == 0 or type == 1) and found_air:
-                land_height = y
+            if vox == 0:
                 good_x = x
                 good_z = z
+                found_air = true
+                land_height = y-1
                 break
-        if land_height >= 0:
+        
+        if land_height >= Voxels.VoxelGenerator._sea_level:
             break
     
-    if land_height < 0:
+    if land_height == -1000:
         print("failed to position player")
         land_height = 24
     
@@ -231,9 +236,9 @@ func set_block(coord : Vector3i, id : int):
         dirty_chunks.push_back(chunk)
         dirty_chunk_mutex.unlock()
             
-        var c = coord - chunk_coord + Vector3i.ONE*Voxels.chunk_size/2
+        var c = coord - chunk_coord + Voxels.chunk_vec3i/2
         if (c.x == 0 or c.y == 0 or c.z == 0
-            or c.x+1 == Voxels.chunk_size or c.y+1 == Voxels.chunk_size or c.z+1 == Voxels.chunk_size):
+            or c.x+1 == Voxels.chunk_size_h or c.y+1 == Voxels.chunk_size_v or c.z+1 == Voxels.chunk_size_h):
             var neighbor_chunk_coords = {}
             for y in range(-1, 2):
                 for z in range(-1, 2):
@@ -365,18 +370,18 @@ func dynamic_world_loop():
 # 1024 = 32 chunk distance
 
 #var range_h = 32/Voxels.chunk_size/2
-var range_h = 512/Voxels.chunk_size/2
+var range_h = 512/Voxels.chunk_size_h/2
 #var range_h = 256/Voxels.chunk_size/2
 #var range_v = 64/Voxels.chunk_size/2
 #var range_v = 128/Voxels.chunk_size/2
-var range_v_down = 128/Voxels.chunk_size
+var range_v_down = 128/Voxels.chunk_size_v
 #var range_v_down = 64/Voxels.chunk_size
-var range_v_up = 256/Voxels.chunk_size
+var range_v_up = 256/Voxels.chunk_size_v
 #var range_v_up = 64/Voxels.chunk_size
 
 var _found_unloadable_chunks = []
 var _find_chunks_prev_player_chunk_2 = null
-var unload_threshold = 1.5 * Voxels.chunk_size
+var unload_threshold = 1.5 * Voxels.chunk_size_h
 func dynamically_unload_world(player_chunk):
     if _find_chunks_prev_player_chunk_2 != player_chunk:
         _find_chunks_prev_player_chunk_2 = player_chunk
@@ -389,7 +394,7 @@ func dynamically_unload_world(player_chunk):
         
         for coord in all_chunks:
             var c_local = coord - player_chunk
-            if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size + unload_threshold:
+            if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size_h + unload_threshold:
                 _found_unloadable_chunks.push_back(coord)
             #elif abs(c_local.y) > max(range_v, range_h)*Voxels.chunk_size + unload_threshold:
             #    _found_unloadable_chunks.push_back(coord)
@@ -430,16 +435,27 @@ func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
                 for x in range(-range_h, range_h+1):
                     if Vector2i(x, z).length() > range_h-0.5:
                         continue
-                    var c = Vector3i(x, y, z) * Voxels.chunk_size
+                    var c = Vector3i(x, y, z) * Voxels.chunk_vec3i
+                    
                     var c2 = c - player_chunk*Vector3i(0, 1, 0)
+                    var c2_aux = c2/Voxels.chunk_vec3i
                     
                     var c_global = c + player_chunk*Vector3i(1, 0, 1)
                     
                     if c_global in chunks_loaded:
                         continue
                     
+                    var h_delta_immediate = abs(c2_aux.y) + abs(c2_aux.z) + abs(c2_aux.x)
+                    var h_delta_box = max(max(abs(c2_aux.y), abs(c2_aux.z)), abs(c2_aux.x))
+                    
                     var h_dist = (c*Vector3i(1, 0, 1)).length()
                     var score = c2.length()
+                    
+                    if h_delta_immediate <= 1:
+                        score -= 2000.0
+                    elif h_delta_box <= 1:
+                        score -= 1000.0
+                    
                     if score > 30.0 and h_dist > 30.0:
                         var cn = c2/score
                         if cn.dot(facing_dir) < -0.5:
@@ -518,11 +534,11 @@ func dynamically_load_world(player_chunk, facing_dir):
                 vox = all_chunks[c_coord]
             
             for y in range(-1, 2):
-                if c_coord.y/Voxels.chunk_size + y < -range_v_down or c_coord.y/Voxels.chunk_size + y > range_v_up:
+                if c_coord.y/Voxels.chunk_size_v + y < -range_v_down or c_coord.y/Voxels.chunk_size_v + y > range_v_up:
                     continue
                 for z in range(-1, 2):
                     for x in range(-1, 2):
-                        var c2_coord = Vector3i(x, y, z) * Voxels.chunk_size + c_coord
+                        var c2_coord = Vector3i(x, y, z) * Voxels.chunk_vec3i + c_coord
                         if not c2_coord in all_chunks:
                             var vox2 = load_chunk(c2_coord)
                             all_chunks[c2_coord] = vox2

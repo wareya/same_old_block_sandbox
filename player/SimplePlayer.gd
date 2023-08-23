@@ -287,7 +287,8 @@ func _process(delta: float) -> void:
         global_position.z += 8388608.0*8.0*8.0
     
     var allow_stair_snapping = started_process_on_floor
-    if Input.is_action_pressed("ui_accept") and (started_process_on_floor or in_water):
+    var force_jump = Input.is_action_just_pressed("ui_accept")
+    if force_jump or (Input.is_action_pressed("ui_accept") and (started_process_on_floor or in_water)):
         allow_stair_snapping = false
         velocity.y = jumpvel
         if in_water:

@@ -1,10 +1,12 @@
 extends Node3D
 class_name Voxels
 
+static var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
 #static var chunk_size = 16
-static var chunk_size : int = 16
-static var chunk_vec3i : Vector3i = Vector3i(chunk_size, chunk_size, chunk_size)
-static var bounds : AABB = AABB(Vector3(), Vector3.ONE*(chunk_size-1))
+static var chunk_size_h : int = VoxelGenerator._chunk_size_h
+static var chunk_size_v : int = VoxelGenerator._chunk_size_v
+static var chunk_vec3i : Vector3i = Vector3i(chunk_size_h, chunk_size_v, chunk_size_h)
+static var bounds : AABB = AABB(Vector3(), Vector3(chunk_vec3i) - Vector3.ONE)
 
 # 0xFF - not cached. other: cached, "on" bits are drawn sides.
 var side_cache = PackedByteArray()
@@ -12,15 +14,14 @@ var side_cache = PackedByteArray()
 # actual voxel array
 var voxels = PackedByteArray()
 
-static var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func generate():
     var _start = Time.get_ticks_usec()
-    side_cache.resize(chunk_size*chunk_size*chunk_size)
+    side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
     side_cache.fill(0xFF)
     
-    var offset = -Vector3i.ONE*chunk_size/2 + chunk_position
+    var offset = -chunk_vec3i/2 + chunk_position
     var offset_2d = Vector2i(offset.x, offset.z)
     var noiser = world.base_noise
     
@@ -50,14 +51,14 @@ func do_generation(pos : Vector3i):
     generate()
 
 func load_generation(pos : Vector3i, _voxels : PackedByteArray):
-    side_cache.resize(chunk_size*chunk_size*chunk_size)
+    side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
     side_cache.fill(0xFF)
     
     chunk_position = pos
     voxels = _voxels
 
 static func coord_to_index(coord : Vector3i) -> float:
-    return coord.y*chunk_size*chunk_size + coord.z*chunk_size + coord.x
+    return coord.y*chunk_size_h*chunk_size_h + coord.z*chunk_size_h + coord.x
 
 var remesh_output_mutex = Mutex.new()
 var remesh_output = []
@@ -74,7 +75,7 @@ func remesh():
     for y in range(-1, 2):
         for z in range(-1, 2):
             for x in range(-1, 2):
-                var c = Vector3i(x, y, z)*chunk_size + chunk_position
+                var c = Vector3i(x, y, z)*chunk_vec3i + chunk_position
                 if c in world.all_chunks:
                     neighbor_chunks[c] = world.all_chunks[c].voxels
     world.chunk_table_mutex.unlock()
@@ -109,7 +110,7 @@ func get_block_with_origin(coord : Vector3) -> int:
     return get_block(Vector3i(coord.round()) + world.world_origin)
 
 func get_block(coord : Vector3i) -> int:
-    coord += Vector3i.ONE*chunk_size/2
+    coord += chunk_vec3i/2
     coord -= Vector3i(chunk_position)
     if bounds.has_point(coord):
         var index = Voxels.coord_to_index(coord)
@@ -121,7 +122,7 @@ func set_block_with_origin(coord : Vector3, id : int):
     set_block(Vector3i(coord.round()) + world.world_origin, id)
 
 func set_block(coord : Vector3i, id : int):
-    coord += Vector3i.ONE*chunk_size/2
+    coord += chunk_vec3i/2
     coord -= Vector3i(chunk_position)
     
     # if the id is real, change the voxel
@@ -157,18 +158,18 @@ func dirty_sides():
     dirty_command_mutex.unlock()
     
 func _dirty_sides():
-    for y in chunk_size:
-        for z in chunk_size:
+    for y in chunk_size_v:
+        for z in chunk_size_h:
             side_cache[Voxels.coord_to_index(Vector3i(0, y, z))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3i(chunk_size-1, y, z))] = 0xFF
-    for y in chunk_size:
-        for x in chunk_size:
+            side_cache[Voxels.coord_to_index(Vector3i(chunk_size_h-1, y, z))] = 0xFF
+    for y in chunk_size_v:
+        for x in chunk_size_h:
             side_cache[Voxels.coord_to_index(Vector3i(x, y, 0))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3i(x, y, chunk_size-1))] = 0xFF
-    for z in chunk_size:
-        for x in chunk_size:
+            side_cache[Voxels.coord_to_index(Vector3i(x, y, chunk_size_h-1))] = 0xFF
+    for z in chunk_size_h:
+        for x in chunk_size_h:
             side_cache[Voxels.coord_to_index(Vector3i(x, 0, z))] = 0xFF
-            side_cache[Voxels.coord_to_index(Vector3i(x, chunk_size-1, z))] = 0xFF
+            side_cache[Voxels.coord_to_index(Vector3i(x, chunk_size_v-1, z))] = 0xFF
 
 var remesh_semaphore = Semaphore.new()
 var remesh_thread = Thread.new()
