@@ -388,7 +388,7 @@ func check_chunk(start_pos, start_vel):
         
         return null
     else:
-        var d = Voxels.GlobalGenerator.pub_true_height_at_global(Vector3i(global_position.round()) + world.world_origin)
+        var d = Voxels.VoxelGenerator.pub_true_height_at_global(Vector3i(global_position.round()) + world.world_origin)
         $DebugLabel.text = "%s\n%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
         var block_in = chunk.get_block_with_origin(global_position + Vector3.UP*0.5)
         var head_block_in = chunk.get_block_with_origin(global_position + Vector3.UP*1.5)
