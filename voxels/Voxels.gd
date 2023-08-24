@@ -11,10 +11,8 @@ static var bounds : AABB = AABB(Vector3(), Vector3(chunk_vec3i) - Vector3.ONE)
 # 0xFF - not cached. other: cached, "on" bits are drawn sides.
 var side_cache = PackedByteArray()
 
-# actual voxel array
-var voxels = PackedByteArray()
-
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
+var voxels = preload("res://voxels/VoxelGenerator.cs").new()
 
 var chunk_position : Vector3i = Vector3i()
 
@@ -23,21 +21,19 @@ func generate_terrain(pos : Vector3i):
     if terrain_generated:
         return
     
-    voxels.resize(chunk_size_h*chunk_size_h*chunk_size_v)
-    
     chunk_position = pos
-    voxels = GlobalGenerator._Generate_Terrain_Only(voxels, world.base_noise, chunk_position)
+    voxels._Generate_Terrain_Only(world.base_noise, chunk_position)
     terrain_generated = true
 
 var fully_generated = false
-func generate(pos : Vector3i):
+func generate(pos : Vector3i, neighbor_chunks : Dictionary):
     if fully_generated:
         return
     
     assert(terrain_generated)
     
     chunk_position = pos
-    voxels = GlobalGenerator._Generate(voxels, chunk_position)
+    voxels._Generate(chunk_position, neighbor_chunks)
     fully_generated = true
 
 var meshinst_child = MeshInstance3D.new()
@@ -59,7 +55,7 @@ func _notification(what: int) -> void:
 
 func load_generation(pos : Vector3i, _voxels : PackedByteArray):
     chunk_position = pos
-    voxels = _voxels
+    voxels.voxels = _voxels
     terrain_generated = true
 
 static func coord_to_index(coord : Vector3i) -> float:
@@ -122,11 +118,8 @@ func get_block_with_origin(coord : Vector3) -> int:
 func get_block(coord : Vector3i) -> int:
     coord += chunk_vec3i/2
     coord -= Vector3i(chunk_position)
-    if bounds.has_point(coord):
-        var index = Voxels.coord_to_index(coord)
-        return voxels[index]
     
-    return 0
+    return voxels.get_voxel(coord)
 
 func set_block_with_origin(coord : Vector3, id : int):
     set_block(Vector3i(coord.round()) + world.world_origin, id)
@@ -136,11 +129,8 @@ func set_block(coord : Vector3i, id : int):
     coord -= Vector3i(chunk_position)
     
     # if the id is real, change the voxel
-    if bounds.has_point(coord) and id >= 0:
-        # FIXME: thread-unsafe but... the remesh thread only ever *reads* this, and will
-        # reread it again next cycle if it ever reads a half-stale version
-        var index = Voxels.coord_to_index(coord)
-        voxels[index] = id
+    if id >= 0:
+        voxels.set_voxel(coord, id)
     
     block_command_mutex.lock()
     block_commands.push_back([coord, id])

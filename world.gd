@@ -109,32 +109,32 @@ func load_chunk_if_in_file(coord : Vector3i):
         return null
 
 func load_chunk(coord : Vector3i):
-    if false:
-        var terrain_load_buffer = 1
-        for y in range(-terrain_load_buffer, terrain_load_buffer+1):
-            for z in range(-terrain_load_buffer, terrain_load_buffer+1):
-                for x in range(-terrain_load_buffer, terrain_load_buffer+1):
-                    if x == 0 and y == 0 and z == 0:
-                        continue
-                    var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
-                    if not c in all_chunks:
-                        var new_vox = load_chunk_if_in_file(c)
-                        if !new_vox:
-                            new_vox = Voxels.new()
-                            new_vox.generate_terrain(c)
-                        all_chunks[c] = new_vox
+    var terrain_load_buffer = 1
+    var neighbor_chunks = {}
+    for y in range(-terrain_load_buffer, terrain_load_buffer+1):
+        for z in range(-terrain_load_buffer, terrain_load_buffer+1):
+            for x in range(-terrain_load_buffer, terrain_load_buffer+1):
+                if x == 0 and y == 0 and z == 0:
+                    continue
+                var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
+                if not c in all_chunks:
+                    var new_vox = load_chunk_if_in_file(c)
+                    if !new_vox:
+                        new_vox = Voxels.new()
+                        new_vox.generate_terrain(c)
+                    all_chunks[c] = new_vox
+                neighbor_chunks[c] = all_chunks[c].voxels
     
     var vox = null
-    
     if coord in all_chunks:
         vox = all_chunks[coord]
-        vox.generate(coord)
+        vox.generate(coord, neighbor_chunks)
     else:
         vox = load_chunk_if_in_file(coord)
         if !vox:
             vox = Voxels.new()
             vox.generate_terrain(coord)
-            vox.generate(coord)
+            vox.generate(coord, neighbor_chunks)
         all_chunks[coord] = vox
     
     generated_chunks[coord] = vox
@@ -581,6 +581,7 @@ func dynamically_load_world(player_chunk, facing_dir):
             chunk_table_mutex.unlock()
             return [chunk]
         else:
+            
             chunk_table_mutex.lock()
             
             var vox = load_chunk(c_coord)

@@ -171,10 +171,10 @@ public partial class VoxelMesher : RefCounted
     }
     
     class Arrays {
-        public List<Vector3> ColVerts = new List<Vector3>();
-        public List<Vector3> Verts = new List<Vector3>();
-        public List<byte> FaceInfo = new List<byte>();
-        public List<int> Indexes = new List<int>();
+        public List<Vector3> ColVerts = new();
+        public List<Vector3> Verts = new();
+        public List<byte> FaceInfo = new();
+        public List<int> Indexes = new();
     };
     
     Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
@@ -189,9 +189,9 @@ public partial class VoxelMesher : RefCounted
             return type == target_type;
         };
         
-        Dictionary<Vector3I, byte[]> neighbors = new Dictionary<Vector3I, byte[]>();
+        Dictionary<Vector3I, byte[]> neighbors = new();
         foreach (var k in neighbor_chunks.Keys)
-            neighbors[(Vector3I)k] = (byte[])neighbor_chunks[k];
+            neighbors[(Vector3I)k] = ((VoxelGenerator)neighbor_chunks[k])._voxels;
         
         byte[] voxels = neighbors[chunk_position];
         
