@@ -397,11 +397,18 @@ public partial class VoxelGenerator : RefCounted
         return coord.Y*chunk_size_h*chunk_size_h + coord.Z*chunk_size_h + coord.X;
     }
     (int, byte)[] chunk_info = new (int, byte)[chunk_size_h*chunk_size_h];
-    public byte[] _Generate_Terrain_Only(Noise noiser, Vector3I chunk_position)
+    /*
+    public int get_voxel_index(int index)
     {
-        var offset = -chunk_vec3i/2 + chunk_position;
-        var offset_2d = new Vector2I(offset.X, offset.Z);
-        
+        return _voxels[index];
+    }
+    public void set_voxel_index(int index, byte type)
+    {
+        _voxels[index] = type;
+    }
+    */
+    public byte[] _Generate_Terrain_Only(byte[] voxels, Noise noiser, Vector3I chunk_position)
+    {
         if (!erosion_seed_set)
         {
             var n = (Godot.FastNoiseLite)noiser;
@@ -417,7 +424,9 @@ public partial class VoxelGenerator : RefCounted
             erosion_seed_set = true;
         }
         
-        var voxels = new byte[chunk_size_h*chunk_size_h*chunk_size_v];
+        var offset = -chunk_vec3i/2 + chunk_position;
+        var offset_2d = new Vector2I(offset.X, offset.Z);
+        
         var prev_height_x = new int[chunk_size_h];
         foreach (var x in Enumerable.Range(0, chunk_size_h))
         {
@@ -527,9 +536,9 @@ public partial class VoxelGenerator : RefCounted
         
         return voxels;
     }
-    public byte[] _Generate(Noise noiser, Vector3I chunk_position)
+    public byte[] _Generate(byte[] voxels, Vector3I chunk_position)
     {
-        var voxels = _Generate_Terrain_Only(noiser, chunk_position);
+        System.Diagnostics.Debug.Assert(voxels.Length == chunk_size_h*chunk_size_h*chunk_size_v);
         
         var biome_foliage = 1.0f;//get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
         

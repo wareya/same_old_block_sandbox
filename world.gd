@@ -16,8 +16,8 @@ func _init():
     randomize()
     world_seed = randi()
     #world_seed = 124
-    #world_seed = 6143
-    world_seed = 733
+    world_seed = 6143
+    #world_seed = 733
     #world_seed = 578
     #world_seed = 613
     print(world_seed)
@@ -108,10 +108,30 @@ func load_chunk_if_in_file(coord : Vector3i):
         return null
 
 func load_chunk(coord : Vector3i):
+    var terrain_load_buffer = 1
+    
+    if false:
+        for y in range(-terrain_load_buffer, terrain_load_buffer+1):
+            for z in range(-terrain_load_buffer, terrain_load_buffer+1):
+                for x in range(-terrain_load_buffer, terrain_load_buffer+1):
+                    if x == 0 and y == 0 and z == 0:
+                        continue
+                    var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
+                    if c in all_chunks:
+                        all_chunks[c].generate_terrain(c)
+                    else:
+                        var new_vox = load_chunk_if_in_file(coord)
+                        if !new_vox:
+                            new_vox = Voxels.new()
+                            new_vox.generate_terrain(c)
+                        all_chunks[c] = new_vox
+    
     var vox = load_chunk_if_in_file(coord)
     if !vox:
         vox = Voxels.new()
-        vox.do_generation(coord)
+        vox.generate_terrain(coord)
+        vox.generate(coord)
+    all_chunks[coord] = vox
     return vox
 
 var chunks_meshed = 0
@@ -128,8 +148,7 @@ func _ready() -> void:
             for x in range(-_spawn_range, _spawn_range+1):
                 var c = Vector3i(x, y, z)*Voxels.chunk_vec3i
                 
-                var vox = load_chunk(c)
-                all_chunks[c] = vox
+                load_chunk(c)
     
     place_player()
     
@@ -163,7 +182,7 @@ func place_player():
         var found_air = false
         
         var world_top = (range_h+0.5)*Voxels.chunk_size_v
-        var start_h = Voxels.VoxelGenerator.pub_height_at_global(Vector3i(x, 0, z))
+        var start_h = Voxels.GlobalGenerator.pub_height_at_global(Vector3i(x, 0, z))
         
         print("testing ", start_h, " to ", world_top)
         
@@ -177,7 +196,7 @@ func place_player():
                 land_height = y-1
                 break
         
-        if land_height >= Voxels.VoxelGenerator._sea_level:
+        if land_height >= Voxels.GlobalGenerator._sea_level:
             break
     
     if land_height == -1000:
@@ -526,12 +545,7 @@ func dynamically_load_world(player_chunk, facing_dir):
         else:
             chunk_table_mutex.lock()
             
-            var vox
-            if not c_coord in all_chunks:
-                vox = load_chunk(c_coord)
-                all_chunks[c_coord] = vox
-            else:
-                vox = all_chunks[c_coord]
+            var vox = load_chunk(c_coord)
             
             for y in range(-1, 2):
                 if c_coord.y/Voxels.chunk_size_v + y < -range_v_down or c_coord.y/Voxels.chunk_size_v + y > range_v_up:
@@ -539,9 +553,7 @@ func dynamically_load_world(player_chunk, facing_dir):
                 for z in range(-1, 2):
                     for x in range(-1, 2):
                         var c2_coord = Vector3i(x, y, z) * Voxels.chunk_vec3i + c_coord
-                        if not c2_coord in all_chunks:
-                            var vox2 = load_chunk(c2_coord)
-                            all_chunks[c2_coord] = vox2
+                        load_chunk(c2_coord)
             chunk_table_mutex.unlock()
             
             vox.process_and_remesh()

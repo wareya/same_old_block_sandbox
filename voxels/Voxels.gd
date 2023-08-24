@@ -1,10 +1,10 @@
 extends Node3D
 class_name Voxels
 
-static var VoxelGenerator = preload("res://voxels/VoxelGenerator.cs").new()
+static var GlobalGenerator = preload("res://voxels/VoxelGenerator.cs").new()
 #static var chunk_size = 16
-static var chunk_size_h : int = VoxelGenerator._chunk_size_h
-static var chunk_size_v : int = VoxelGenerator._chunk_size_v
+static var chunk_size_h : int = GlobalGenerator._chunk_size_h
+static var chunk_size_v : int = GlobalGenerator._chunk_size_v
 static var chunk_vec3i : Vector3i = Vector3i(chunk_size_h, chunk_size_v, chunk_size_h)
 static var bounds : AABB = AABB(Vector3(), Vector3(chunk_vec3i) - Vector3.ONE)
 
@@ -16,15 +16,26 @@ var voxels = PackedByteArray()
 
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
-func generate():
-    var _start = Time.get_ticks_usec()
-    side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
-    side_cache.fill(0xFF)
-    
-    var noiser = world.base_noise
-    
-    voxels = VoxelGenerator._Generate(noiser, chunk_position)
+var chunk_position : Vector3i = Vector3i()
 
+var terrain_generated = false
+func generate_terrain(pos : Vector3i):
+    if terrain_generated:
+        return
+    
+    voxels.resize(chunk_size_h*chunk_size_h*chunk_size_v)
+    
+    chunk_position = pos
+    voxels = GlobalGenerator._Generate_Terrain_Only(voxels, world.base_noise, chunk_position)
+    terrain_generated = true
+
+var fully_generated = false
+func generate(pos : Vector3i):
+    assert(terrain_generated)
+    
+    chunk_position = pos
+    voxels = GlobalGenerator._Generate(voxels, chunk_position)
+    fully_generated = true
 
 var meshinst_child = MeshInstance3D.new()
 var meshinst_childed : bool = false
@@ -43,17 +54,10 @@ func _notification(what: int) -> void:
             body_child.free()
             body_child = null
 
-var chunk_position : Vector3i = Vector3i()
-func do_generation(pos : Vector3i):
-    chunk_position = pos
-    generate()
-
 func load_generation(pos : Vector3i, _voxels : PackedByteArray):
-    side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
-    side_cache.fill(0xFF)
-    
     chunk_position = pos
     voxels = _voxels
+    terrain_generated = true
 
 static func coord_to_index(coord : Vector3i) -> float:
     return coord.y*chunk_size_h*chunk_size_h + coord.z*chunk_size_h + coord.x
@@ -77,6 +81,10 @@ func remesh():
                 if c in world.all_chunks:
                     neighbor_chunks[c] = world.all_chunks[c].voxels
     world.chunk_table_mutex.unlock()
+    
+    if side_cache.size() == 0:
+        side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
+        side_cache.fill(0xFF)
     
     dirty_command_mutex.lock()
     for cmd in dirty_commands:
