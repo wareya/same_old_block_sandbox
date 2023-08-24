@@ -24,9 +24,6 @@ static func make_mesh() -> ArrayMesh:
 static var mesh : ArrayMesh = make_mesh()
 static var tex : Texture = preload("res://art/tilemap.png")
 
-func _process(delta: float) -> void:
-    pass
-
 func _draw() -> void:
     var rid = get_canvas_item()
     var mesh_rid = mesh.get_rid()

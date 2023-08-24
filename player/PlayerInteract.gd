@@ -49,7 +49,7 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
     if event is InputEventKey:
         if event.pressed and event.keycode == KEY_P:
-            print_orphan_nodes()
+            Node.print_orphan_nodes()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta : float) -> void:

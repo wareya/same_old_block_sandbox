@@ -8,6 +8,7 @@ var chunk_table_mutex = Mutex.new()
 var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
+var generated_chunks = {}
 
 var save_disabled = true
 var backing_file : FileAccess = null
@@ -108,30 +109,36 @@ func load_chunk_if_in_file(coord : Vector3i):
         return null
 
 func load_chunk(coord : Vector3i):
-    var terrain_load_buffer = 1
-    
     if false:
+        var terrain_load_buffer = 1
         for y in range(-terrain_load_buffer, terrain_load_buffer+1):
             for z in range(-terrain_load_buffer, terrain_load_buffer+1):
                 for x in range(-terrain_load_buffer, terrain_load_buffer+1):
                     if x == 0 and y == 0 and z == 0:
                         continue
                     var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
-                    if c in all_chunks:
-                        all_chunks[c].generate_terrain(c)
-                    else:
-                        var new_vox = load_chunk_if_in_file(coord)
+                    if not c in all_chunks:
+                        var new_vox = load_chunk_if_in_file(c)
                         if !new_vox:
                             new_vox = Voxels.new()
                             new_vox.generate_terrain(c)
                         all_chunks[c] = new_vox
     
-    var vox = load_chunk_if_in_file(coord)
-    if !vox:
-        vox = Voxels.new()
-        vox.generate_terrain(coord)
+    var vox = null
+    
+    if coord in all_chunks:
+        vox = all_chunks[coord]
         vox.generate(coord)
-    all_chunks[coord] = vox
+    else:
+        vox = load_chunk_if_in_file(coord)
+        if !vox:
+            vox = Voxels.new()
+            vox.generate_terrain(coord)
+            vox.generate(coord)
+        all_chunks[coord] = vox
+    
+    generated_chunks[coord] = vox
+    
     return vox
 
 var chunks_meshed = 0
@@ -179,7 +186,7 @@ func place_player():
         var x = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
         
         land_height = -1000
-        var found_air = false
+        #var found_air = false
         
         var world_top = (range_h+0.5)*Voxels.chunk_size_v
         var start_h = Voxels.GlobalGenerator.pub_height_at_global(Vector3i(x, 0, z))
@@ -188,11 +195,11 @@ func place_player():
         
         for y in range(start_h-1, world_top):
             var vox = get_block(Vector3i(x, y, z))
-            var type = VoxelMesher.vox_get_type_pub(vox)
+            #var type = VoxelMesher.vox_get_type_pub(vox)
             if vox == 0:
                 good_x = x
                 good_z = z
-                found_air = true
+                #found_air = true
                 land_height = y-1
                 break
         
@@ -280,6 +287,8 @@ func set_block(coord : Vector3i, id : int):
 
 @export var base_noise : Noise = null
 
+var do_threading = true
+
 var time_alive = 0.0
 func _process(delta : float) -> void:
     $FPS.text = (
@@ -292,13 +301,17 @@ func _process(delta : float) -> void:
         ]
     )
     
-    if !world_work_thread.is_started():
-        print("starting world work thread")
-        world_work_thread.start(dynamic_world_loop)
-    
-    if !remesh_work_thread.is_started():
-        print("starting remesh work thread")
-        remesh_work_thread.start(remesh_work_loop)
+    if do_threading:
+        if !world_work_thread.is_started():
+            print("starting world work thread")
+            world_work_thread.start(dynamic_world_loop)
+        
+        if !remesh_work_thread.is_started():
+            print("starting remesh work thread")
+            remesh_work_thread.start(remesh_work_loop)
+    else:
+        dynamic_world_oneshot()
+        remesh_work_oneshot()
     
     time_alive += delta
     if world_work_num_unloaded == 0 and time_alive >= 0.0:
@@ -342,9 +355,34 @@ func remesh_work_loop():
         semaphore.wait()
 
 
+func remesh_work_oneshot():
+    var dirty_list_copy = dirty_chunks.duplicate()
+    dirty_chunks = []
+    
+    if dirty_list_copy.size() > 0:
+        for chunk in dirty_list_copy:
+            chunk.process_and_remesh()
+        
+        var dc = dirty_list_copy.duplicate()
+        
+        trigger_save(dc)
+        
+        trigger_remesh_acceptance(dirty_list_copy)
+    
+        dirtify_world()
+
 var world_work_thread = Thread.new()
 var world_work_wait_signal = Mutex.new()
 var world_work_num_unloaded = -1
+
+func dynamic_world_oneshot():
+    var player_chunk = get_player_chunk_coord()
+    var facing_dir = get_player_facing_dir()
+    
+    dynamically_unload_world(player_chunk)
+    
+    var loaded_info = dynamically_load_world(player_chunk, facing_dir)
+    add_and_load_all([loaded_info])
 
 signal _trigger_world_work
 func dynamic_world_loop():
@@ -554,12 +592,14 @@ func dynamically_load_world(player_chunk, facing_dir):
                     for x in range(-1, 2):
                         var c2_coord = Vector3i(x, y, z) * Voxels.chunk_vec3i + c_coord
                         load_chunk(c2_coord)
+            
             chunk_table_mutex.unlock()
             
             vox.process_and_remesh()
             chunks_meshed += 1
             
             chunks_loaded[c_coord] = vox
+            
             return [vox, c_coord]
     return null
 
