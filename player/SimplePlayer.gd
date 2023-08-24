@@ -360,10 +360,10 @@ func _process(delta: float) -> void:
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func check_chunk(start_pos, start_vel):
-    var prev_chunk_coord = world.get_chunk_coord(start_pos) + world.world_origin
-    var prev_chunk = world.chunks_loaded.get(prev_chunk_coord)
+    var prev_chunk_coord = World.get_chunk_coord(start_pos) + world.world_origin
+    #var prev_chunk = world.chunks_loaded.get(prev_chunk_coord)
     
-    var chunk_coord = world.get_chunk_coord(global_position) + world.world_origin
+    var chunk_coord = World.get_chunk_coord(global_position) + world.world_origin
     var chunk = world.chunks_loaded.get(chunk_coord)
     
     if not chunk or not chunk.remeshed:

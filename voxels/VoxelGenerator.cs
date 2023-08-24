@@ -59,15 +59,15 @@ class GodotNoiseWrapper
 public partial class VoxelGenerator : RefCounted
 {
     //public static int chunk_size = 16;
-    public static int chunk_size_h = 16;
-    public static int chunk_size_v = 48;
+    public const int chunk_size_h = 16;
+    public const int chunk_size_v = 48;
     public int _chunk_size_h = chunk_size_h; // for visibility from gdscript (can't be static)
     public int _chunk_size_v = chunk_size_v; // for visibility from gdscript (can't be static)
     public static Vector3I chunk_vec3i = new Vector3I(chunk_size_h, chunk_size_v, chunk_size_h);
     public static Aabb bounds = new Aabb(new Vector3(), new Vector3(chunk_vec3i.X, chunk_vec3i.Y, chunk_vec3i.Z) - Vector3.One);
     
-    public static int height_offset = 8;
-    public static int sea_level = 6;
+    public const int height_offset = 8;
+    public const int sea_level = 6;
     public int _height_offset = height_offset; // for visibility from gdscript (can't be static)
     public int _sea_level = height_offset; // for visibility from gdscript (can't be static)
     

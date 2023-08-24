@@ -31,6 +31,9 @@ func generate_terrain(pos : Vector3i):
 
 var fully_generated = false
 func generate(pos : Vector3i):
+    if fully_generated:
+        return
+    
     assert(terrain_generated)
     
     chunk_position = pos
@@ -73,6 +76,7 @@ func remesh():
     
     #print("in remesh()")
     var neighbor_chunks = {}
+    
     world.chunk_table_mutex.lock()
     for y in range(-1, 2):
         for z in range(-1, 2):
@@ -198,7 +202,7 @@ func accept_remesh():
         var _start = Time.get_ticks_usec()
         
         var mesh_child = ArrayMesh.new()
-        var mesh2_child = ArrayMesh.new()
+        #var mesh2_child = ArrayMesh.new()
         
         var add_arrays = func(mesh, arrays, mat):
             if arrays and arrays.size() > 0 and arrays[0].size() > 0:
