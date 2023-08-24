@@ -37,9 +37,12 @@ func handle_accel(delta):
     var wish_dir_length = wish_dir.length()
     var actual_accel = (accel if is_on_floor() else accel_air) * actual_maxspeed * wish_dir_length
     
-    if Input.is_action_pressed("sprint"):
+    if Input.is_action_pressed("supersprint"):
         actual_maxspeed *= 20.0
         actual_accel *= 20.0
+    elif Input.is_action_pressed("sprint"):
+        actual_maxspeed *= 1.3
+        actual_accel *= 1.3
     
     if wish_dir != Vector3():
         if in_water:
@@ -293,7 +296,7 @@ func _process(delta: float) -> void:
         velocity.y = jumpvel
         if in_water:
             velocity.y *= 0.5
-        if Input.is_action_pressed("sprint"):
+        if Input.is_action_pressed("supersprint"):
             velocity.y *= 5.0
         floor_snap_length = 0.0
     elif started_process_on_floor:

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-public partial class VoxelMesher : RefCounted
+public partial class VoxelMesher : Node
 {
     static Vector3I posmodvi(Vector3I a, Vector3I b)
     {
@@ -593,6 +593,11 @@ public partial class VoxelMesher : RefCounted
         arraysets.Add(arrays[0].ColVerts.ToArray());
         
         return arraysets;
+    }
+    ~VoxelMesher()
+    {
+        bitmask_cache = null;
+        side_cache = null;
     }
 }
 

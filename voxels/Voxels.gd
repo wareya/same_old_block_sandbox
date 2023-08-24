@@ -11,7 +11,7 @@ static var bounds : AABB = AABB(Vector3(), Vector3(chunk_vec3i) - Vector3.ONE)
 # 0xFF - not cached. other: cached, "on" bits are drawn sides.
 var side_cache = PackedByteArray()
 
-var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
+var mesher = preload("res://voxels/VoxelMesher.cs").new()
 var voxels = preload("res://voxels/VoxelGenerator.cs").new()
 
 var chunk_position : Vector3i = Vector3i()
@@ -52,6 +52,12 @@ func _notification(what: int) -> void:
         if body_child and is_instance_valid(body_child):
             body_child.free()
             body_child = null
+        
+        voxels.free()
+        voxels = null
+        mesher.free()
+        mesher = null
+        
 
 func load_generation(pos : Vector3i, _voxels : PackedByteArray):
     chunk_position = pos
@@ -96,9 +102,9 @@ func remesh():
     dirty_commands = []
     dirty_command_mutex.unlock()
     
-    VoxelMesher.side_cache = side_cache
-    var arrays = VoxelMesher.remesh_get_arrays(chunk_position, neighbor_chunks)
-    side_cache = VoxelMesher.side_cache
+    mesher.side_cache = side_cache
+    var arrays = mesher.remesh_get_arrays(chunk_position, neighbor_chunks)
+    side_cache = mesher.side_cache
     
     # wrong way, have to do it to avoid crashes
     remesh_output_mutex.lock()

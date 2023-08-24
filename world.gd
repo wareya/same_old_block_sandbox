@@ -2,9 +2,9 @@ extends Node3D
 class_name World
 
 
-# approximate world limit: 16777216 units away from origin
 # actual world limit: 32-bit signed integer overflow
 var chunk_table_mutex = Mutex.new()
+var chunk_loaded_table_mutex = Mutex.new()
 var chunks_unloaded = {}
 var chunks_loaded = {}
 var all_chunks = {}
@@ -16,8 +16,8 @@ var backing_file : FileAccess = null
 func _init():
     randomize()
     world_seed = randi()
-    #world_seed = 124
-    world_seed = 6143
+    world_seed = 124
+    #world_seed = 6143
     #world_seed = 733
     #world_seed = 578
     #world_seed = 613
@@ -111,31 +111,42 @@ func load_chunk_if_in_file(coord : Vector3i):
 func load_chunk(coord : Vector3i):
     var terrain_load_buffer = 1
     var neighbor_chunks = {}
+    
     for y in range(-terrain_load_buffer, terrain_load_buffer+1):
         for z in range(-terrain_load_buffer, terrain_load_buffer+1):
             for x in range(-terrain_load_buffer, terrain_load_buffer+1):
                 if x == 0 and y == 0 and z == 0:
                     continue
                 var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
-                if not c in all_chunks:
-                    var new_vox = load_chunk_if_in_file(c)
+                if c.y/Voxels.chunk_size_v < -range_v_down or c.y/Voxels.chunk_size_v > range_v_up:
+                    continue
+                var new_vox = null
+                if c in all_chunks:
+                    new_vox = all_chunks[c]
+                else:
+                    new_vox = load_chunk_if_in_file(c)
                     if !new_vox:
                         new_vox = Voxels.new()
-                        new_vox.generate_terrain(c)
                     all_chunks[c] = new_vox
-                neighbor_chunks[c] = all_chunks[c].voxels
+                neighbor_chunks[c] = all_chunks[c]
+    
+    for c in neighbor_chunks:
+        neighbor_chunks[c].generate_terrain(c)
+        neighbor_chunks[c] = neighbor_chunks[c].voxels
     
     var vox = null
     if coord in all_chunks:
         vox = all_chunks[coord]
-        vox.generate(coord, neighbor_chunks)
     else:
         vox = load_chunk_if_in_file(coord)
         if !vox:
             vox = Voxels.new()
-            vox.generate_terrain(coord)
-            vox.generate(coord, neighbor_chunks)
         all_chunks[coord] = vox
+    
+    chunk_table_mutex.unlock()
+    
+    vox.generate_terrain(coord)
+    vox.generate(coord, neighbor_chunks)
     
     generated_chunks[coord] = vox
     
@@ -144,7 +155,6 @@ func load_chunk(coord : Vector3i):
 var chunks_meshed = 0
 
 # Called when the node enters the scene tree for the first time.
-static var _spawn_range = 3
 func _ready() -> void:
     base_noise.seed = world_seed
     print(world_seed)
@@ -188,7 +198,7 @@ func place_player():
         land_height = -1000
         #var found_air = false
         
-        var world_top = (range_h+0.5)*Voxels.chunk_size_v
+        var world_top = (range_v_up+0.5)*Voxels.chunk_size_v
         var start_h = Voxels.GlobalGenerator.pub_height_at_global(Vector3i(x, 0, z))
         
         print("testing ", start_h, " to ", world_top)
@@ -266,15 +276,15 @@ func set_block(coord : Vector3i, id : int):
         if (c.x == 0 or c.y == 0 or c.z == 0
             or c.x+1 == Voxels.chunk_size_h or c.y+1 == Voxels.chunk_size_v or c.z+1 == Voxels.chunk_size_h):
             var neighbor_chunk_coords = {}
+            chunk_table_mutex.lock()
             for y in range(-1, 2):
                 for z in range(-1, 2):
                     for x in range(-1, 2):
                         var c2 = Vector3i(x, y, z) + coord
                         var chunk2_coord = World.get_chunk_coord(c2)
-                        chunk_table_mutex.lock()
                         if chunk2_coord in all_chunks:
                             neighbor_chunk_coords[chunk2_coord] = all_chunks[chunk2_coord]
-                        chunk_table_mutex.unlock()
+            chunk_table_mutex.unlock()
             
             if chunk_coord in neighbor_chunk_coords:
                 neighbor_chunk_coords.erase(chunk_coord)
@@ -292,10 +302,11 @@ var do_threading = true
 var time_alive = 0.0
 func _process(delta : float) -> void:
     $FPS.text = (
-        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks meshed: %s" %
+        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s" %
         [Engine.get_frames_per_second(),
         world_work_num_unloaded,
         chunks_loaded.size(),
+        generated_chunks.size(),
         all_chunks.size(),
         chunks_meshed,
         ]
@@ -313,10 +324,11 @@ func _process(delta : float) -> void:
         dynamic_world_oneshot()
         remesh_work_oneshot()
     
-    time_alive += delta
-    if world_work_num_unloaded == 0 and time_alive >= 0.0:
-        print("fully loaded!", time_alive)
-        time_alive = -100.0
+    if time_alive >= 0:
+        time_alive += delta
+        if world_work_num_unloaded == 0:
+            print("fully loaded!", time_alive)
+            time_alive = -100.0
     
     apply_chunks_offset()
     
@@ -382,7 +394,8 @@ func dynamic_world_oneshot():
     dynamically_unload_world(player_chunk)
     
     var loaded_info = dynamically_load_world(player_chunk, facing_dir)
-    add_and_load_all([loaded_info])
+    if loaded_info:
+        add_and_load_all([loaded_info])
 
 signal _trigger_world_work
 func dynamic_world_loop():
@@ -426,35 +439,35 @@ func dynamic_world_loop():
 # 768 = 24 chunk distance
 # 1024 = 32 chunk distance
 
-#var range_h = 32/Voxels.chunk_size/2
-var range_h = 512/Voxels.chunk_size_h/2
-#var range_h = 256/Voxels.chunk_size/2
-#var range_v = 64/Voxels.chunk_size/2
-#var range_v = 128/Voxels.chunk_size/2
-var range_v_down = 128/Voxels.chunk_size_v
-#var range_v_down = 64/Voxels.chunk_size
-var range_v_up = 256/Voxels.chunk_size_v
-#var range_v_up = 64/Voxels.chunk_size
+#static var range_h = 96/Voxels.chunk_size_h/2
+static var range_h = 512/Voxels.chunk_size_h/2
+#static var range_h = 256/Voxels.chunk_size_h/2
+static var range_v_down = 128/Voxels.chunk_size_v
+#static var range_v_down = 64/Voxels.chunk_size
+static var range_v_up = 256/Voxels.chunk_size_v
+#static var range_v_up = 64/Voxels.chunk_size
 
-var _found_unloadable_chunks = []
+static var _spawn_range = min(range_h, 3)
+
 var _find_chunks_prev_player_chunk_2 = null
-var unload_threshold = 1.5 * Voxels.chunk_size_h
+const unload_threshold = 3.5 # do not lower below 3.5. FIXME: make this based on terrain_load_buffer somehow
 func dynamically_unload_world(player_chunk):
-    if _find_chunks_prev_player_chunk_2 != player_chunk:
+    #print("range: ", range_v_down, " ", range_v_up)
+    var force_unload = Input.is_action_just_pressed("force_unload")
+    if _find_chunks_prev_player_chunk_2 != player_chunk or force_unload:
         _find_chunks_prev_player_chunk_2 = player_chunk
         
-        _found_unloadable_chunks = []
-        
         # FIXME move the loaded, meshed neighbors of unloaded chunks into "unmeshed" state
-        
         chunk_table_mutex.lock()
+        chunk_loaded_table_mutex.lock()
         
+        var _found_unloadable_chunks = []
         for coord in all_chunks:
             var c_local = coord - player_chunk
-            if Vector2(c_local.x, c_local.z).length() > (range_h-0.5)*Voxels.chunk_size_h + unload_threshold:
+            if Vector2(c_local.x, c_local.z).length() > (range_h+0.5 + unload_threshold)*Voxels.chunk_size_h:
                 _found_unloadable_chunks.push_back(coord)
-            #elif abs(c_local.y) > max(range_v, range_h)*Voxels.chunk_size + unload_threshold:
-            #    _found_unloadable_chunks.push_back(coord)
+            elif force_unload and (c_local.x != 0 or c_local.z != 0):
+                _found_unloadable_chunks.push_back(coord)
         
         var unload_list = []
         for coord in _found_unloadable_chunks:
@@ -462,15 +475,18 @@ func dynamically_unload_world(player_chunk):
             all_chunks.erase(coord)
             if coord in chunks_loaded:
                 chunks_loaded.erase(coord)
-            #chunks_unloaded[coord] = chunk
+            if coord in generated_chunks:
+                generated_chunks.erase(coord)
+            
             unload_list.push_back(chunk)
+        
+        chunk_loaded_table_mutex.unlock()
         chunk_table_mutex.unlock()
         
         do_unload.call_deferred(unload_list)
 
 func do_unload(chunk_list : Array):
     for chunk in chunk_list:
-        #print("freeing chunk at ", chunk.chunk_position)
         if chunk.is_inside_tree():
             chunk.get_parent().remove_child(chunk)
         chunk.free()
@@ -480,17 +496,18 @@ var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
 func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
     var dot = facing_dir.dot(_find_chunks_prev_facing_dir)
-    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.95:
+    var force_unload = Input.is_action_just_pressed("force_unload")
+    if _find_chunks_prev_player_chunk != player_chunk or dot < 0.95 or force_unload:
         #print("finding chunk load")
         _find_chunks_prev_player_chunk = player_chunk
         _find_chunks_prev_facing_dir = facing_dir
         
         _find_chunks_unloaded_coords = []
-        chunk_table_mutex.lock()
+        chunk_loaded_table_mutex.lock()
         for y in range(-range_v_down, range_v_up+1):
             for z in range(-range_h, range_h+1):
                 for x in range(-range_h, range_h+1):
-                    if Vector2i(x, z).length() > range_h-0.5:
+                    if Vector2i(x, z).length() > range_h+0.5:
                         continue
                     var c = Vector3i(x, y, z) * Voxels.chunk_vec3i
                     
@@ -524,7 +541,7 @@ func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
                     
                     _find_chunks_unloaded_coords.push_back([-score, c_global])
     
-        chunk_table_mutex.unlock()
+        chunk_loaded_table_mutex.unlock()
         
         world_work_num_unloaded = _find_chunks_unloaded_coords.size()
         _find_chunks_unloaded_coords.sort()
@@ -547,13 +564,13 @@ func apply_chunks_offset():
         player.cached_position -= Vector3(diff)
         player.force_update_transform()
         
-        chunk_table_mutex.lock()
+        chunk_loaded_table_mutex.lock()
         for chunk_coord in chunks_loaded:
             var chunk = chunks_loaded[chunk_coord]
             if chunk.is_inside_tree():
                 chunk.global_position = chunk.chunk_position - world_origin
                 chunk.inform_moved()
-        chunk_table_mutex.unlock()
+        chunk_loaded_table_mutex.unlock()
 
 func get_player_chunk_coord(no_y : bool = false):
     var player = DummySingleton.get_tree().get_first_node_in_group("Player")
@@ -575,16 +592,16 @@ func dynamically_load_world(player_chunk, facing_dir):
         
         if c_coord in chunks_unloaded:
             var chunk = chunks_unloaded[c_coord]
-            chunk_table_mutex.lock()
+            chunk_loaded_table_mutex.lock()
             chunks_loaded[c_coord] = chunk
             chunks_unloaded.erase(c_coord)
-            chunk_table_mutex.unlock()
+            chunk_loaded_table_mutex.unlock()
             return [chunk]
         else:
             
-            chunk_table_mutex.lock()
-            
             var vox = load_chunk(c_coord)
+            
+            chunk_table_mutex.lock()
             
             for y in range(-1, 2):
                 if c_coord.y/Voxels.chunk_size_v + y < -range_v_down or c_coord.y/Voxels.chunk_size_v + y > range_v_up:
@@ -599,7 +616,9 @@ func dynamically_load_world(player_chunk, facing_dir):
             vox.process_and_remesh()
             chunks_meshed += 1
             
+            chunk_loaded_table_mutex.lock()
             chunks_loaded[c_coord] = vox
+            chunk_loaded_table_mutex.unlock()
             
             return [vox, c_coord]
     return null

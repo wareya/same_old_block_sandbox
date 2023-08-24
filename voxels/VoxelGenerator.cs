@@ -10,7 +10,7 @@ using NoiseType = FastNoiseLite;
 // do not use for production, use FastNoiseLite.cs instead
 class GodotNoiseWrapper
 {
-    Godot.FastNoiseLite noise = new Godot.FastNoiseLite();
+    Godot.FastNoiseLite noise = new();
     
     public float GetNoise(double x, double y)
     {
@@ -56,7 +56,7 @@ class GodotNoiseWrapper
     }
 }
 
-public partial class VoxelGenerator : RefCounted
+public partial class VoxelGenerator : Node
 {
     //public static int chunk_size = 16;
     public const int chunk_size_h = 16;
@@ -133,12 +133,18 @@ public partial class VoxelGenerator : RefCounted
     // gets 2d value noise
     public static float get_noise_2d_adjusted(int x, int z, float freq = 1.0f, int x_offset = 0, int z_offset = 0)
     {
+        var x2 = (double)x;
+        var z2 = (double)z;
+        // add a small amount of jitter to x and z to make cliff faces less regular
+        x2 += Math.Abs(x)*2654435761%256/512.0-0.25;
+        z2 += Math.Abs(z)*2654435761%256/512.0-0.25;
+        
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
         if (x_over || z_over)
             return noise_blend_wrapper(x, z, freq, x_offset, z_offset, (x, z) => {return custom_noise.GetNoise(x, z);});
         else
-            return custom_noise.GetNoise(x*(double)freq + x_offset, z*(double)freq + z_offset);
+            return custom_noise.GetNoise(x2*(double)freq + x_offset, z2*(double)freq + z_offset);
     }
     // gets 3d perlin noise
     public static float get_noise_3d_adjusted(int x, int y, int z, float freq = 1.0f)
@@ -155,16 +161,9 @@ public partial class VoxelGenerator : RefCounted
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
-        var height_freq = 0.25f;
+        var height_freq = 0.45f;
         
         float height = get_noise_2d_adjusted(x, z, height_freq);
-        
-        // extra grit
-        //float grit_freq = 21.4f;
-        //float grit_freq = 5.4f;
-        //float grit_scale = 0.01f;
-        
-        //height += get_noise_2d_adjusted(x, z, grit_freq, 512, 11) * grit_scale;
         
         float steepness_preoffset_freq = 0.5f;
         float steepness_preoffset = get_noise_2d_adjusted(x, -1-z, steepness_preoffset_freq, 0, -1130) * 0.75f;
@@ -186,7 +185,7 @@ public partial class VoxelGenerator : RefCounted
         float height_scale_exp = 5.0f;
         
         float height_scale = get_noise_2d_adjusted(x, z, height_scale_freq, 0, 154)*0.5f + 0.5f;
-        height = height * Mathf.Lerp(height_scale_min, height_scale_max, Mathf.Pow(height_scale, height_scale_exp));
+        height *= Mathf.Lerp(height_scale_min, height_scale_max, Mathf.Pow(height_scale, height_scale_exp));
         
         float height_noise_freq = 5.4f;
         float height_noise_scale = 2.0f;
@@ -395,6 +394,7 @@ public partial class VoxelGenerator : RefCounted
     {
         return coord.Y*chunk_size_h*chunk_size_h + coord.Z*chunk_size_h + coord.X;
     }
+    public byte[] _voxels = new byte[chunk_size_h*chunk_size_h*chunk_size_v];
     public (int, byte)[] chunk_info = new (int, byte)[chunk_size_h*chunk_size_h];
     public byte get_voxel(Vector3I coord)
     {
@@ -407,7 +407,6 @@ public partial class VoxelGenerator : RefCounted
         if (bounds.HasPoint(coord))
             _voxels[coord_to_index(coord)] = type;
     }
-    public byte[] _voxels = new byte[chunk_size_h*chunk_size_h*chunk_size_v];
     public void _Generate_Terrain_Only(Noise noiser, Vector3I chunk_position)
     {
         var voxels = _voxels;
@@ -663,5 +662,10 @@ public partial class VoxelGenerator : RefCounted
                     voxels[index] = type;
             }
         }
+    }
+    ~VoxelGenerator()
+    {
+        _voxels = null;
+        chunk_info = null;
     }
 }
