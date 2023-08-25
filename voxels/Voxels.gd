@@ -2,6 +2,7 @@ extends Node3D
 class_name Voxels
 
 static var GlobalGenerator = preload("res://voxels/VoxelGenerator.cs").new()
+static var GlobalMesher = preload("res://voxels/VoxelMesher.cs").new()
 #static var chunk_size = 16
 static var chunk_size_h : int = GlobalGenerator._chunk_size_h
 static var chunk_size_v : int = GlobalGenerator._chunk_size_v

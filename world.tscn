@@ -1,7 +1,8 @@
-[gd_scene load_steps=16 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=17 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="2_yo0d7"]
+[ext_resource type="AudioStream" uid="uid://bt6lbbpn0ett7" path="res://bgm/main theme.ogg" id="3_ykvi2"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_5sm6h"]
 noise_type = 5
@@ -155,3 +156,11 @@ visible = false
 offset_right = 512.0
 offset_bottom = 512.0
 texture = SubResource("NoiseTexture2D_7jmul")
+
+[node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3_ykvi2")
+autoplay = true
+bus = &"BGM"
+
+[node name="AmbiencePlayer" type="AudioStreamPlayer" parent="."]
+bus = &"BGM"

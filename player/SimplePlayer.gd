@@ -41,8 +41,8 @@ func handle_accel(delta):
         actual_maxspeed *= 20.0
         actual_accel *= 20.0
     elif Input.is_action_pressed("sprint"):
-        actual_maxspeed *= 1.3
-        actual_accel *= 1.3
+        actual_maxspeed *= 6.3/max_speed
+        actual_accel *= 6.3/max_speed
     
     if wish_dir != Vector3():
         if in_water:
@@ -279,7 +279,9 @@ func probe_probable_step_height():
 
 var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
+var prev_position = Vector3i()
 func _process(delta: float) -> void:
+    prev_position = Vector3i(global_position.round()) + world.world_origin
     started_process_on_floor = is_on_floor()
     # for controller camera control
     #handle_stick_input(delta)
@@ -336,7 +338,7 @@ func _process(delta: float) -> void:
     var is_solid = func(id : int):
         if id == 0:
             return false
-        var type = VoxelMesher.vox_get_type_pub(id)
+        var type = Voxels.GlobalMesher.vox_get_type_pub(id)
         return type == 0 or type == 1
     
     if chunk:
@@ -353,14 +355,63 @@ func _process(delta: float) -> void:
     $OverlayLayer/WaterOverlay.visible = head_in_water
     
     handle_camera_adjustment(start_pos, delta)
-    #add_collision_debug_visualizer(delta)
     
-    #$ReflectionProbe.update_mode = ReflectionProbe.UPDATE_ALWAYS if velocity.length() > 10.0 else ReflectionProbe.UPDATE_ONCE
+    handle_movement_sound(started_process_on_floor, is_on_floor(), start_vel, delta)
     
     cached_position = global_position
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
 
-var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
+func get_standing_voxel():
+    var below = global_position - Vector3.UP*0.5
+    var vox = world.get_block_with_origin(below)
+    #if vox == 0: vox = world.get_block(prev_position - Vector3i.UP)
+    if vox == 0: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0, -0.45))
+    if vox == 0: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0,  0.45))
+    if vox == 0: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0, -0.45))
+    if vox == 0: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0,  0.45))
+    return vox
+
+static func get_vox_sound_prefix(vox : int):
+    match vox:
+        1: return "grass"
+        2: return "dirt"
+        3: return "rock"
+        4: return "wood"
+        14: return "sand"
+        -1: return "place"
+        _: return "grass"
+
+static var prev_which = ""
+static func generate_sound(vox, kind, parent, where : Vector3 = Vector3()):
+    var prefix = get_vox_sound_prefix(vox)
+    var which = ["_a", "_b", "_c", "_d"].pick_random()
+    while which == prev_which:
+        which = ["_a", "_b", "_c", "_d"].pick_random()
+    prev_which = which
+    EmitterFactory.emit(prefix+kind+which, parent, where)
+
+func generate_step_sound():
+    var vox = get_standing_voxel()
+    generate_sound(vox, "step", self)
+
+var step_progress = 0.0
+const step_rate_modifier = 0.6
+func handle_movement_sound(started_process_on_floor : bool, now_on_floor : bool, start_vel : Vector3, delta : float):
+    if !is_on_floor():
+        step_progress = 0.5
+        return
+    var speed = min(6.0, start_vel.length())
+    if speed == 0.0:
+        step_progress = 0.85
+    else:
+        step_progress += delta * speed * step_rate_modifier
+        if !started_process_on_floor and now_on_floor and start_vel.y < -1.0:
+            step_progress = 0.0
+            generate_step_sound()
+        else:
+            if step_progress > 1.0:
+                generate_step_sound()
+                step_progress = fmod(step_progress, 1.0)
 
 func check_chunk(start_pos, start_vel):
     var prev_chunk_coord = World.get_chunk_coord(start_pos) + world.world_origin

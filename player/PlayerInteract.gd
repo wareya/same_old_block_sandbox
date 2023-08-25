@@ -52,6 +52,7 @@ func _input(event: InputEvent) -> void:
             Node.print_orphan_nodes()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
+var prev_which = ""
 func _process(_delta : float) -> void:
     force_raycast_update()
     
@@ -64,9 +65,13 @@ func _process(_delta : float) -> void:
         mesh_instance_child.scale = Vector3.ONE * 1.01
         
         if Input.is_action_just_pressed("m1"):
+            var old_type = world.get_block_with_origin(delete_point)
+            SimplePlayer.generate_sound(old_type, "hit", null, delete_point)
+            
             world.set_block_with_origin(delete_point, 0)
         if Input.is_action_just_pressed("m2"):
             world.set_block_with_origin(build_point, 1)
+            SimplePlayer.generate_sound(-1, "", null, delete_point)
     else:
         mesh_instance_child.visible = false
     #if Input.is_action_just_pressed("m1"):

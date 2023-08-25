@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://jn3rfkfcdhjf"
+path="res://.godot/imported/hot theme.ogg-b8dbd39dd8ade231e707a04dc06923fc.oggvorbisstr"
+
+[deps]
+
+source_file="res://bgm/hot theme.ogg"
+dest_files=["res://.godot/imported/hot theme.ogg-b8dbd39dd8ade231e707a04dc06923fc.oggvorbisstr"]
+
+[params]
+
+loop=true
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

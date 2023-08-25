@@ -1,0 +1,22 @@
+[gd_resource type="AudioBusLayout" load_steps=2 format=3 uid="uid://b8eyjmhorajcy"]
+
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_7dn6h"]
+resource_name = "Compressor"
+ratio = 48.0
+release_ms = 80.0
+
+[resource]
+bus/1/name = &"SFX"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = -2.91905
+bus/1/send = &"Master"
+bus/1/effect/0/effect = SubResource("AudioEffectCompressor_7dn6h")
+bus/1/effect/0/enabled = true
+bus/2/name = &"BGM"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = -4.50411
+bus/2/send = &"Master"

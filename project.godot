@@ -18,7 +18,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-DummySingleton="*res://DummySingleton.gd"
+DummySingleton="*res://singletons/DummySingleton.gd"
+EmitterFactory="*res://singletons/EmitterFactory.gd"
 
 [debug]
 
