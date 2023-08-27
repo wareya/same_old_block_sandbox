@@ -17,7 +17,9 @@ const accel_air = 15.0
 var wish_dir = Vector3()
 var friction = 6.0
 
+var original_fov = 90.0
 func _ready():
+    original_fov = $CameraHolder/Camera3D.fov
     floor_constant_speed = true
 
 func _friction(_velocity : Vector3, delta : float) -> Vector3:
@@ -32,6 +34,9 @@ func handle_friction(delta):
     if !is_on_floor():
         velocity.y = oldvel.y
 
+
+var sprint_strength = 0.0
+
 func handle_accel(delta):
     var actual_maxspeed = max_speed if is_on_floor() else max_speed_air
     var wish_dir_length = wish_dir.length()
@@ -40,10 +45,18 @@ func handle_accel(delta):
     if Input.is_action_pressed("supersprint"):
         actual_maxspeed *= 20.0
         actual_accel *= 20.0
+        sprint_strength = move_toward(sprint_strength, 2.0, delta*32.0)
     elif Input.is_action_pressed("sprint"):
         actual_maxspeed *= 6.3/max_speed
         actual_accel *= 6.3/max_speed
+        sprint_strength = move_toward(sprint_strength, 1.0, delta*16.0)
+    else:
+        sprint_strength = move_toward(sprint_strength, 0.0, delta*16.0)
     
+    if in_water:
+        actual_maxspeed *= 0.7
+        actual_accel *= 0.7
+        
     if wish_dir != Vector3():
         if in_water:
             var speed_in_wish_dir = velocity.dot(wish_dir.normalized())
@@ -297,7 +310,7 @@ func _process(delta: float) -> void:
         allow_stair_snapping = false
         velocity.y = jumpvel
         if in_water:
-            velocity.y *= 0.5
+            velocity.y *= 0.2
         if Input.is_action_pressed("supersprint"):
             velocity.y *= 5.0
         floor_snap_length = 0.0
@@ -343,13 +356,13 @@ func _process(delta: float) -> void:
     
     if chunk:
         var pos = global_position
-        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 0.01, 0))):
+        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.01, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 0.5, 0))):
+        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.5, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 1.0, 0))):
+        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.0, 0))):
             global_position.y += 0.5
-        if is_solid.call(chunk.get_block_with_origin(pos + Vector3(0, 1.5, 0))):
+        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.5, 0))):
             global_position.y += 0.5
     
     $OverlayLayer/WaterOverlay.visible = head_in_water
@@ -362,13 +375,15 @@ func _process(delta: float) -> void:
     cached_facing_dir = $CameraHolder.basis * Vector3.FORWARD
 
 func get_standing_voxel():
+    if !is_on_floor() and in_water:
+        return 6
     var below = global_position - Vector3.UP*0.5
     var vox = world.get_block_with_origin(below)
     #if vox == 0: vox = world.get_block(prev_position - Vector3i.UP)
-    if vox == 0: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0, -0.45))
-    if vox == 0: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0,  0.45))
-    if vox == 0: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0, -0.45))
-    if vox == 0: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0,  0.45))
+    if vox == 0 or vox == 6: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0, -0.45))
+    if vox == 0 or vox == 6: vox = world.get_block_with_origin(below + Vector3( 0.45, 0.0,  0.45))
+    if vox == 0 or vox == 6: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0, -0.45))
+    if vox == 0 or vox == 6: vox = world.get_block_with_origin(below + Vector3(-0.45, 0.0,  0.45))
     return vox
 
 static func get_vox_sound_prefix(vox : int):
@@ -382,36 +397,55 @@ static func get_vox_sound_prefix(vox : int):
         _: return "grass"
 
 static var prev_which = ""
-static func generate_sound(vox, kind, parent, where : Vector3 = Vector3()):
-    var prefix = get_vox_sound_prefix(vox)
+static func generate_sound(vox, kind, parent, where : Vector3 = Vector3(), channel = "SFX"):
+    var prefix = get_vox_sound_prefix(vox) if vox is int else vox
     var which = ["_a", "_b", "_c", "_d"].pick_random()
     while which == prev_which:
         which = ["_a", "_b", "_c", "_d"].pick_random()
     prev_which = which
-    EmitterFactory.emit(prefix+kind+which, parent, where)
+    EmitterFactory.emit(prefix+kind+which, parent, where, channel)
 
 func generate_step_sound():
     var vox = get_standing_voxel()
-    generate_sound(vox, "step", self)
+    generate_sound(vox, "step", self, Vector3(), "SFX" if !in_water else "SFX Wet")
 
 var step_progress = 0.0
 const step_rate_modifier = 0.6
+var prev_in_water = false
 func handle_movement_sound(started_process_on_floor : bool, now_on_floor : bool, start_vel : Vector3, delta : float):
-    if !is_on_floor():
+    var speed = start_vel.length()
+    if prev_in_water and !in_water:
+        generate_sound("leavewater", "", self, Vector3(), "SFX")
+        step_progress = 0.0
+    if !prev_in_water and in_water and speed > 10.0:
+        generate_sound("splash", "", self, Vector3(), "SFX")
+        step_progress = 0.0
+    
+    prev_in_water = in_water
+        
+    var i = AudioServer.get_bus_index("SFX")
+    AudioServer.set_bus_effect_enabled(i, 0, head_in_water)
+    AudioServer.set_bus_effect_enabled(i, 1, head_in_water)
+    
+    if is_on_floor() and !started_process_on_floor:
         step_progress = 0.5
-        return
-    var speed = min(6.0, start_vel.length())
-    if speed == 0.0:
-        step_progress = 0.85
+    
+    if !is_on_floor() and !in_water:
+        pass
     else:
-        step_progress += delta * speed * step_rate_modifier
-        if !started_process_on_floor and now_on_floor and start_vel.y < -1.0:
-            step_progress = 0.0
-            generate_step_sound()
+        if speed == 0.0:
+            step_progress = 0.85
         else:
-            if step_progress > 1.0:
+            step_progress += delta * min(7.0, speed) * step_rate_modifier
+            if !started_process_on_floor and now_on_floor and start_vel.y < -1.0:
+                step_progress = 0.0
                 generate_step_sound()
-                step_progress = fmod(step_progress, 1.0)
+            else:
+                if step_progress > 1.0:
+                    if in_water:
+                        generate_sound("leavewater", "", self, Vector3(), "SFX")
+                    generate_step_sound()
+                    step_progress = fmod(step_progress, 1.0)
 
 func check_chunk(start_pos, start_vel):
     var prev_chunk_coord = World.get_chunk_coord(start_pos) + world.world_origin
@@ -444,10 +478,11 @@ func check_chunk(start_pos, start_vel):
     else:
         var d = Voxels.GlobalGenerator.pub_true_height_at_global(Vector3i(global_position.round()) + world.world_origin)
         $DebugLabel.text = "%s\n%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
-        var block_in = chunk.get_block_with_origin(global_position + Vector3.UP*0.5)
-        var head_block_in = chunk.get_block_with_origin(global_position + Vector3.UP*1.5)
+        var up_offset = 0.7 if !in_water else 0.3
+        var block_in = world.get_block_with_origin(global_position + Vector3.UP*up_offset)
+        var head_block_in = world.get_block_with_origin(global_position + Vector3.UP*1.5)
         in_water = block_in == 6 or head_block_in == 6
-        head_in_water = chunk.get_block_with_origin($CameraHolder.global_position + Vector3.UP/8.0) == 6
+        head_in_water = world.get_block_with_origin($CameraHolder.global_position + Vector3.UP/8.0) == 6
         return chunk
 
 func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
@@ -463,7 +498,6 @@ func actually_handle_movement(delta, drag, grav_mod, allow_stair_snapping):
     if not is_on_floor(): 
         velocity.y -= gravity * delta * 0.5 * grav_mod
         velocity.y *= pow(drag, delta*10.0)
-    
 
 func refresh_probe():
     $ReflectionProbe.max_distance = randf_range(64.0, 65.0)
@@ -505,6 +539,8 @@ func _unhandled_input(event: InputEvent) -> void:
 # used to smooth out the camera when climbing stairs
 var camera_offset_y = 0.0
 func handle_camera_adjustment(start_position, delta):
+    $CameraHolder/Camera3D.fov = rad_to_deg(atan(sprint_strength*0.1 + tan(deg_to_rad(original_fov/2.0))))*2.0
+    
     # first/third-person adjustment
     $CameraHolder.position.y = 1.2 if third_person else 1.625
     $CameraHolder/Camera3D.position.z = 1.5 if third_person else 0.0

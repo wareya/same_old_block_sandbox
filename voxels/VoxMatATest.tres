@@ -73,6 +73,7 @@ void fragment()
     if (tex.a < 0.5)
         discard;
 }
+
 "
 
 [resource]

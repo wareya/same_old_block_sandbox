@@ -51,6 +51,16 @@ var sounds = {
     "place_c" : preload("res://sfx/place_c.wav"),
     "place_d" : preload("res://sfx/place_d.wav"),
     
+    "leavewater_a" : preload("res://sfx/leavewater_a.wav"),
+    "leavewater_b" : preload("res://sfx/leavewater_b.wav"),
+    "leavewater_c" : preload("res://sfx/leavewater_c.wav"),
+    "leavewater_d" : preload("res://sfx/leavewater_d.wav"),
+    
+    "splash_a" : preload("res://sfx/splash_a.wav"),
+    "splash_b" : preload("res://sfx/splash_b.wav"),
+    "splash_c" : preload("res://sfx/splash_c.wav"),
+    "splash_d" : preload("res://sfx/splash_d.wav"),
+    
     "pop" : preload("res://sfx/pop.wav"),
 }
 
