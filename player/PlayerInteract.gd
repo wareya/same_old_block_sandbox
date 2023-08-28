@@ -70,13 +70,16 @@ func _process(_delta : float) -> void:
         if Input.is_action_just_pressed("m1"):
             var old_type = world.get_block_with_origin(delete_point)
             SimplePlayer.generate_sound(old_type, "hit", null, delete_point)
-            
             world.set_block_with_origin(delete_point, 0)
+        
         if Input.is_action_just_pressed("m2"):
             var vox = player.use_selected_block()
-            
             world.set_block_with_origin(build_point, vox)
             SimplePlayer.generate_sound(-1, "", null, delete_point)
+        
+        if Input.is_action_just_pressed("m3"):
+            var old_type = world.get_block_with_origin(delete_point)
+            player.pick_block(world.get_block_with_origin(delete_point))
     else:
         mesh_instance_child.visible = false
     #if Input.is_action_just_pressed("m1"):

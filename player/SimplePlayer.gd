@@ -564,6 +564,9 @@ func handle_camera_adjustment(start_position, delta):
 func use_selected_block():
     return $ActiveInventory.use_selected_block()
 
+func pick_block(vox : int):
+    return $ActiveInventory.pick_block(vox)
+
 static func make_debug_mesh(color : Color):
     var texture = GradientTexture2D.new()
     texture.fill_from = Vector2(0.5, 0.5)

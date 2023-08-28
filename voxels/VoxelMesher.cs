@@ -267,9 +267,6 @@ public partial class VoxelMesher : Node
                 int bottom = 0;
                 int top = core_height;
                 
-                //if (vox_side_up_type == 2)
-                //    top = info_max;
-                
                 if (vox_side_type == 2)
                     bottom = static_water_height;
                 else if (vox_down_type == 2 && vox_side_down_type == 2)
@@ -357,7 +354,9 @@ public partial class VoxelMesher : Node
                                 {
                                     var neighbor_coord = new Vector3I(x, y, z) + dir;
                                     var neighbor = get_voxel(neighbor_coord + chunk_position);
-                                    var xparent_condition = vox_xparent && neighbor != 0 && d != 0 && (d == 1 || (side_val[d-2].Item2 >= 0));
+                                    var neighbor_type = vox_get_type(vox);
+                                    var neighbor_allows_xparent = neighbor == 0 || neighbor_type != 0;
+                                    var xparent_condition = vox_xparent && !neighbor_allows_xparent && d != 0 && (d == 1 || (side_val[d-2].Item2 >= 0));
                                     if (voxel_same_type(neighbor, vox_type) || xparent_condition)
                                         continue;
                                 }

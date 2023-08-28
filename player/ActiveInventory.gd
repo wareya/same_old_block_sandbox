@@ -7,6 +7,16 @@ var mode = 0 # creative
 func use_selected_block():
     if mode == 0:
         return inventory[current_item]
+    else:
+        # TODO check and reduce count etc
+        return inventory[current_item]
+
+func pick_block(vox : int):
+    var found = inventory.find(vox)
+    if found >= 0:
+        current_item = found
+    else:
+        inventory[current_item] = vox
 
 var icons = []
 func _ready() -> void:

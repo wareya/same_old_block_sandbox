@@ -258,9 +258,6 @@ func accept_remesh():
                 remove_child(body_child)
                 body_childed = false
         
-        
-        #print("accept time: ", (Time.get_ticks_usec() - _start)/1000.0)
-        
         remeshed = true
     else:
         remesh_output_mutex.unlock()
