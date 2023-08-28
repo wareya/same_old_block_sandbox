@@ -7,8 +7,11 @@ var mesh_instance_child = MeshInstance3D.new()
 static var dirs = [Vector3.LEFT, Vector3.RIGHT, Vector3.UP, Vector3.DOWN, Vector3.FORWARD, Vector3.BACK]
 static var face_verts = [Vector3(0.5, 0.5, -0.5), Vector3(-0.5, 0.5, -0.5), Vector3(0.5, -0.5, -0.5), Vector3(-0.5, -0.5, -0.5)]
 
+var player : SimplePlayer = null
+
 func _ready() -> void:
     var verts = PackedVector3Array()
+    player = get_parent().get_parent()
     
     for dir in dirs:
         var ref_dir = Vector3.UP if not dir.abs() == Vector3.UP else Vector3.LEFT
@@ -70,7 +73,9 @@ func _process(_delta : float) -> void:
             
             world.set_block_with_origin(delete_point, 0)
         if Input.is_action_just_pressed("m2"):
-            world.set_block_with_origin(build_point, 1)
+            var vox = player.use_selected_block()
+            
+            world.set_block_with_origin(build_point, vox)
             SimplePlayer.generate_sound(-1, "", null, delete_point)
     else:
         mesh_instance_child.visible = false

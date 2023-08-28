@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://btujbjwrxaun8"]
+[gd_scene load_steps=20 format=3 uid="uid://btujbjwrxaun8"]
 
 [ext_resource type="Script" path="res://player/SimplePlayer.gd" id="1_gyxg8"]
 [ext_resource type="Script" path="res://BuildBlocker.gd" id="2_dh2nm"]
@@ -6,7 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://dupq5pu7c2bje" path="res://art/ui_c.png" id="4_0gfg3"]
 [ext_resource type="Script" path="res://addons/scrolllistcontainer/ScrollGridContainer.gd" id="5_cqj76"]
 [ext_resource type="Texture2D" uid="uid://c02rxtjo1ive8" path="res://art/ui_e.png" id="6_u0mvo"]
-[ext_resource type="Texture2D" uid="uid://13vpsqnaru7t" path="res://art/ui_d.png" id="7_sd3f7"]
+[ext_resource type="Script" path="res://player/ActiveInventory.gd" id="7_n6uuq"]
 [ext_resource type="Texture2D" uid="uid://clav75neu5yjm" path="res://art/ui_b.png" id="8_u1bnx"]
 [ext_resource type="Script" path="res://InventoryItem.gd" id="9_ga6ka"]
 
@@ -103,6 +103,9 @@ height = 16
 outline_size = 5
 outline_color = Color(0, 0, 0, 1)
 shadow_size = 0
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_hwarr"]
+load_path = "res://.godot/imported/ui_b.png-4f62da27e2a73ab08ff42d7d3a071951.ctex"
 
 [node name="Player" type="CharacterBody3D" groups=["Player"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 17.3011, 0)
@@ -696,19 +699,18 @@ offset_right = 313.0
 offset_bottom = -3.0
 grow_horizontal = 2
 grow_vertical = 0
-script = ExtResource("5_cqj76")
+script = ExtResource("7_n6uuq")
 spacing = 3.0
 line_item_count = 10
 line_min_size = 60.0
 line_max_size = 60.0
-background_texture = ExtResource("7_sd3f7")
 background_inner_rect = Rect2(6, 6, 0, 0)
 background_shrink = Vector2(3, 3)
 
 [node name="NinePatchRect1" type="NinePatchRect" parent="ActiveInventory"]
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-texture = ExtResource("8_u1bnx")
+texture = SubResource("CompressedTexture2D_hwarr")
 patch_margin_left = 12
 patch_margin_top = 12
 patch_margin_right = 12

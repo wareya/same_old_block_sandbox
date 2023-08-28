@@ -102,6 +102,10 @@ public partial class VoxelMesher : Node
         new int[]{83, 83, 83}, // flower d
         new int[]{5, 5, 5}, // sand
     };
+    int[] get_voxel_info(int myint)
+    {
+        return voxel_info[myint];
+    }
     static HashSet<int> vox_alphatest = new HashSet<int>{
         5,
     };
@@ -151,6 +155,10 @@ public partial class VoxelMesher : Node
     static bool vox_get_bitmaskless(int vox)
     {
         return vox_bitmaskless.Contains(vox);
+    }
+    bool pub_vox_get_bitmaskless(int vox)
+    {
+        return vox_get_bitmaskless(vox);
     }
     
     static bool vox_get_mesh(int vox)

@@ -561,6 +561,8 @@ func handle_camera_adjustment(start_position, delta):
         $CameraHolder/Camera3D.position.x = 0.0
         $CameraHolder/Camera3D.global_position.y += camera_offset_y
 
+func use_selected_block():
+    return $ActiveInventory.use_selected_block()
 
 static func make_debug_mesh(color : Color):
     var texture = GradientTexture2D.new()

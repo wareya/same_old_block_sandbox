@@ -42,7 +42,6 @@ func open_save():
     if !backing_file:
         backing_file = FileAccess.open(fname, FileAccess.WRITE)
     
-    
     # build index table
     backing_file.seek(0)
     
