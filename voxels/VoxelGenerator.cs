@@ -547,49 +547,42 @@ public partial class VoxelGenerator : Node
         
         var biome_foliage = get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
         
-        var tree_coords = get_tree_coords(chunk_info, chunk_position);
-        var all_tree_coords = new List<(Vector3I, int, uint)>(tree_coords);
+        var all_tree_coords = new List<(Vector3I, int, uint)>();
         var upper_and_left_coords = new HashSet<Vector3I>();
         foreach (var z in Enumerable.Range(-1, 3))
         {
             foreach (var x in Enumerable.Range(-1, 3))
             {
-                if (z == 0 && x == 0)
-                    continue;
                 var c_coord = chunk_position + new Vector3I(x * chunk_size_h, 0, z*chunk_size_h);
                 // FIXME get rid of chunk_info and calculate biome info inside get_tree_coords
-                var coords = get_tree_coords(neighbors[c_coord].chunk_info, c_coord);
+                var coords =  get_tree_coords(z == 0 && x == 0 ? chunk_info : neighbors[c_coord].chunk_info, c_coord);
                 all_tree_coords.AddRange(coords);
-                if (z == -1 || (z == 0 && x == -1))
-                {
-                    foreach (var (c, _, _) in coords)
-                        upper_and_left_coords.Add(c);
-                }
+                foreach (var (c, _, _) in coords)
+                    upper_and_left_coords.Add(c);
             }
         }
         
         foreach (var (_coord, tall, grunge) in all_tree_coords)
         {
             var bad = false;
-            foreach (var (other_x, _, other_z) in upper_and_left_coords) // FIXME slightly wrong
+            foreach (var (other_x, _, other_z) in upper_and_left_coords)
             {
                 var diff_x = _coord.X - other_x;
                 var diff_z = _coord.Z - other_z;
-                if (diff_x == 0 & diff_z == 0)
+                if (diff_x < 0 || diff_z < 0)
                     continue;
-                if (Math.Abs(diff_x) < 3 && Math.Abs(diff_z) < 3 && diff_x >= 0 && diff_z >= 0)
+                if (diff_x == 0 && diff_z == 0)
+                    continue;
+                if (diff_x < 3 && diff_z < 3)
                 {
                     bad = true;
                     break;
-                }   
+                }
             }
             if (bad)
                 continue;
             
             var coord = _coord - chunk_position;
-            
-            //if (coord.X+2 < 0 || coord.X-2 >= chunk_size_h ||coord.Z+2 < 0 || coord.Z-2 >= chunk_size_h)
-            //    continue;
             
             var leaf_bottom = Math.Max(2, tall-3);
             if (tall >= 7 && leaf_bottom > 2)

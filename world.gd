@@ -184,18 +184,18 @@ func _ready() -> void:
 
 func start_music_playlist():
     var playlist = [
+        preload("res://bgm/main theme.ogg"),
         preload("res://bgm/cold theme.ogg"),
         preload("res://bgm/hot theme.ogg"),
-        preload("res://bgm/main theme.ogg")
     ]
     while true:
-        await $BGMPlayer.finished
-        await get_tree().create_timer(10.0).timeout
+        await get_tree().create_timer(30.0).timeout
         var next = playlist.pop_front()
         playlist.push_back(next)
         $BGMPlayer.stream = next
         if !$BGMPlayer.playing:
             $BGMPlayer.playing = true
+        await $BGMPlayer.finished
     
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 

@@ -159,7 +159,6 @@ texture = SubResource("NoiseTexture2D_7jmul")
 
 [node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("3_ykvi2")
-autoplay = true
 bus = &"BGM"
 
 [node name="AmbiencePlayer" type="AudioStreamPlayer" parent="."]
