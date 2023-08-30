@@ -196,10 +196,9 @@ func process_and_remesh():
 func accept_remesh():
     remesh_output_mutex.lock()
     if remesh_output != []:
-        var _start = Time.get_ticks_usec()
+        var start = Time.get_ticks_usec()
         
         var mesh_child = ArrayMesh.new()
-        #var mesh2_child = ArrayMesh.new()
         
         var add_arrays = func(mesh, arrays, mat):
             if arrays and arrays.size() > 0 and arrays[0].size() > 0:
@@ -208,10 +207,6 @@ func accept_remesh():
                 var id = mesh.get_surface_count() - 1
                 mesh.surface_set_material(id, mat)
             return mesh
-        
-        #print("array sizes:")
-        #for array in remesh_output:
-        #    print(array[0].size())
         
         add_arrays.call(mesh_child, remesh_output[0], preload("res://voxels/VoxMat.tres"))
         add_arrays.call(mesh_child, remesh_output[1], preload("res://voxels/VoxMatATest.tres"))
@@ -259,9 +254,13 @@ func accept_remesh():
                 body_childed = false
         
         remeshed = true
+        var end = Time.get_ticks_usec()
+        accept_time += (end-start)/1000000.0
     else:
         remesh_output_mutex.unlock()
-    
+
+static var accept_time = 0.0
+
 func inform_moved():
     if body_childed:
         body_child.force_update_transform()

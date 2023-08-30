@@ -8,9 +8,12 @@ public partial class VoxelMesher : Node
 {
     static Vector3I posmodvi(Vector3I a, Vector3I b)
     {
-        a.X = (a.X%b.X + b.X)%b.X;
-        a.Y = (a.Y%b.Y + b.Y)%b.Y;
-        a.Z = (a.Z%b.Z + b.Z)%b.Z;
+        a.X = a.X%b.X;
+        if (a.X < 0) a.X += b.X;
+        a.Y = a.Y%b.Y;
+        if (a.Y < 0) a.Y += b.Y;
+        a.Z = a.Z%b.Z;
+        if (a.Z < 0) a.Z += b.Z;
         return a;
     }
     public static Vector3I get_chunk_coord(Vector3I coord)
@@ -214,20 +217,17 @@ public partial class VoxelMesher : Node
         var get_voxel = int (Vector3I global_coord) =>
         {
             var local_coord = global_coord - chunk_position;
-            if (bounds.HasPoint(local_coord))
+            if (local_coord.X >= 0 && local_coord.X < VoxelGenerator.chunk_size_h &&
+                local_coord.Z >= 0 && local_coord.Z < VoxelGenerator.chunk_size_h &&
+                local_coord.Y >= 0 && local_coord.Y < VoxelGenerator.chunk_size_v)
             {
-                var neighbor_index = calc_index(local_coord);
-                return voxels[neighbor_index];
+                return voxels[calc_index(local_coord)];
             }
             var chunk_coord = get_chunk_coord(global_coord - VoxelGenerator.chunk_vec3i/2);
             if (neighbors.ContainsKey(chunk_coord))
             {
                 var neighbor_voxels = neighbors[chunk_coord];
                 var neighbor_coord = global_coord - chunk_coord;
-                //GD.Print("---");
-                //GD.Print(global_coord);
-                //GD.Print(chunk_coord);
-                //GD.Print(neighbor_coord);
                 var index = calc_index(neighbor_coord);
                 return neighbor_voxels[index];
             }
@@ -347,7 +347,6 @@ public partial class VoxelMesher : Node
                         (top_val, side_val) = calc_water_info(local_coord + chunk_position);
                     
                     // 0xFF = not calculated yet
-                    // 0x7F = special (always recalculate)
                     if (cached == 0xFF)
                     {
                         cached = 0;
@@ -440,7 +439,10 @@ public partial class VoxelMesher : Node
                                     var v = mesh_vert_table.Item1[j*4 + i];
                                     
                                     arrays[vox_type].Verts.Add(coord + v);
-                                    arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)(6+j), index_a, index_b, 0xFF});
+                                    arrays[vox_type].FaceInfo.Add((byte)(6+j));
+                                    arrays[vox_type].FaceInfo.Add(index_a);
+                                    arrays[vox_type].FaceInfo.Add(index_b);
+                                    arrays[vox_type].FaceInfo.Add(0xFF);
                                 }
                                 arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
                             }
@@ -573,7 +575,10 @@ public partial class VoxelMesher : Node
                                             }
                                             
                                             arrays[vox_type].Verts.Add(coord + v);
-                                            arrays[vox_type].FaceInfo.AddRange(new byte[]{(byte)d, index_a, index_b, bitmask});
+                                            arrays[vox_type].FaceInfo.Add((byte)d);
+                                            arrays[vox_type].FaceInfo.Add(index_a);
+                                            arrays[vox_type].FaceInfo.Add(index_b);
+                                            arrays[vox_type].FaceInfo.Add(bitmask);
                                         }
                                         arrays[vox_type].Indexes.AddRange(new int[]{i_start+0, i_start+1, i_start+2, i_start+2, i_start+1, i_start+3});
                                     }
@@ -592,6 +597,9 @@ public partial class VoxelMesher : Node
             }
         }
         
+        var end = Godot.Time.GetTicksUsec()/1000000.0f;
+        meshing_time += end-start;
+        
         var arraysets = new Godot.Collections.Array();
         
         foreach (var array in arrays)
@@ -604,9 +612,6 @@ public partial class VoxelMesher : Node
             arraysets.Add(mesharrays);
         }
         arraysets.Add(arrays[0].ColVerts.ToArray());
-        
-        var end = Godot.Time.GetTicksUsec()/1000000.0f;
-        meshing_time += end-start;
         
         return arraysets;
     }

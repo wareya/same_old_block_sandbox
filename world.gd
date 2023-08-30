@@ -317,7 +317,7 @@ var do_threading = true
 var time_alive = 0.0
 func _process(delta : float) -> void:
     $FPS.text = (
-        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s\ntime spent meshing: %s\ntime spent generating terrain: %s\ntime spent decorating world: %s" %
+        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s\ntime spent meshing: %s\ntime spent generating terrain: %s\ntime spent decorating world: %s\ntime spent accepting meshes: %s" %
         [Engine.get_frames_per_second(),
         world_work_num_unloaded,
         chunks_loaded.size(),
@@ -327,6 +327,7 @@ func _process(delta : float) -> void:
         snapped(VoxelMesher.pub_get_meshing_time(), 0.01),
         snapped(Voxels.GlobalGenerator.pub_get_terrain_time(), 0.01),
         snapped(Voxels.GlobalGenerator.pub_get_decorate_time(), 0.01),
+        snapped(Voxels.accept_time, 0.01),
         ]
     )
     

@@ -197,9 +197,9 @@ public partial class VoxelGenerator : Node
         float height_noise_scale = 2.0f;
         height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
-        float height_continentize_freq = 1.25f;
-        float height_continentize_scale = 8.0f;
-        height += Mathf.Lerp(get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 15161, 12246)*0.5f + 0.5f, 0.0f, height_continentize_scale);
+        float height_continentize_freq = 0.25f;
+        float height_continentize_scale = 4.0f;
+        height += get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 15161, 12246) * height_continentize_scale - 2.0f;
         
         float rock_freq = 2.6f;
         float rock_scale = 4.0f;
@@ -315,8 +315,6 @@ public partial class VoxelGenerator : Node
     {
         var (h, rock, sand) = height_at_global(x, z);
         var eroded_h = erode_height_at_global(h, x, z);
-        var diff_h = h - eroded_h;
-        rock -= (int)(diff_h*0.9f);
         return (eroded_h, rock, sand);
     }
     public int pub_true_height_at_global(Vector3I global_coord)
@@ -650,9 +648,6 @@ public partial class VoxelGenerator : Node
                         extremely_steep = true;
                 }
                 // done figuring out if it's steep
-                
-                var diff_h = height - eroded_height;
-                rock_height -= (int)(diff_h*0.9f);
                 
                 byte top_vox = 3; // stone
                 if (!extremely_steep)
