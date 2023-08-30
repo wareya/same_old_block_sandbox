@@ -315,6 +315,8 @@ public partial class VoxelGenerator : Node
     {
         var (h, rock, sand) = height_at_global(x, z);
         var eroded_h = erode_height_at_global(h, x, z);
+        var diff_h = h - eroded_h;
+        rock -= diff_h;
         return (eroded_h, rock, sand);
     }
     public int pub_true_height_at_global(Vector3I global_coord)
@@ -648,6 +650,9 @@ public partial class VoxelGenerator : Node
                         extremely_steep = true;
                 }
                 // done figuring out if it's steep
+                
+                var diff_h = height - eroded_height;
+                rock_height -= diff_h;
                 
                 byte top_vox = 3; // stone
                 if (!extremely_steep)

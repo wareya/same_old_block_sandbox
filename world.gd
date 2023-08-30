@@ -111,23 +111,23 @@ func load_chunk(coord : Vector3i):
     var terrain_load_buffer = 1
     var neighbor_chunks = {}
     
-    for y in range(-terrain_load_buffer, terrain_load_buffer+1):
-        for z in range(-terrain_load_buffer, terrain_load_buffer+1):
-            for x in range(-terrain_load_buffer, terrain_load_buffer+1):
-                if x == 0 and y == 0 and z == 0:
-                    continue
-                var c = coord + Vector3i(x, y, z)*Voxels.chunk_vec3i
-                if c.y/Voxels.chunk_size_v < -range_v_down or c.y/Voxels.chunk_size_v > range_v_up:
-                    continue
-                var new_vox = null
-                if c in all_chunks:
-                    new_vox = all_chunks[c]
-                else:
-                    new_vox = load_chunk_if_in_file(c)
-                    if !new_vox:
-                        new_vox = Voxels.new()
-                    all_chunks[c] = new_vox
-                neighbor_chunks[c] = all_chunks[c]
+    var start = Time.get_ticks_usec()/1000000.0
+    
+    for z in range(-terrain_load_buffer, terrain_load_buffer+1):
+        for x in range(-terrain_load_buffer, terrain_load_buffer+1):
+            var c = coord + Vector3i(x, 0, z)*Voxels.chunk_vec3i
+            var new_vox
+            if c in all_chunks:
+                new_vox = all_chunks[c]
+            else:
+                new_vox = load_chunk_if_in_file(c)
+                if !new_vox:
+                    new_vox = Voxels.new()
+                all_chunks[c] = new_vox
+            neighbor_chunks[c] = all_chunks[c]
+    
+    var end = Time.get_ticks_usec()/1000000.0
+    setup_time += end-start
     
     for c in neighbor_chunks:
         neighbor_chunks[c].generate_terrain(c)
@@ -141,8 +141,6 @@ func load_chunk(coord : Vector3i):
         if !vox:
             vox = Voxels.new()
         all_chunks[coord] = vox
-    
-    chunk_table_mutex.unlock()
     
     vox.generate_terrain(coord)
     vox.generate(coord, neighbor_chunks)
@@ -314,10 +312,12 @@ func set_block(coord : Vector3i, id : int):
 
 var do_threading = true
 
+static var setup_time = 0.0
+
 var time_alive = 0.0
 func _process(delta : float) -> void:
     $FPS.text = (
-        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s\ntime spent meshing: %s\ntime spent generating terrain: %s\ntime spent decorating world: %s\ntime spent accepting meshes: %s" %
+        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s\ntime spent meshing: %s\ntime spent generating terrain: %s\ntime spent decorating world: %s\ntime spent accepting meshes: %s\nload and setup time: %s" %
         [Engine.get_frames_per_second(),
         world_work_num_unloaded,
         chunks_loaded.size(),
@@ -328,6 +328,7 @@ func _process(delta : float) -> void:
         snapped(Voxels.GlobalGenerator.pub_get_terrain_time(), 0.01),
         snapped(Voxels.GlobalGenerator.pub_get_decorate_time(), 0.01),
         snapped(Voxels.accept_time, 0.01),
+        snapped(setup_time, 0.01),
         ]
     )
     
@@ -345,7 +346,7 @@ func _process(delta : float) -> void:
     
     if time_alive >= 0:
         time_alive += delta
-        if world_work_num_unloaded == 0:
+        if world_work_num_unloaded == 0 and dirty_chunks.size() == 0:
             print("fully loaded!", time_alive)
             time_alive = -100.0
     
@@ -354,10 +355,6 @@ func _process(delta : float) -> void:
     
 var remesh_work_thread = Thread.new()
 var remesh_work_wait_signal = Mutex.new()
-
-func trigger_remesh_acceptance(dirty_chunk_list):
-    for chunk in dirty_chunk_list:
-        chunk.accept_remesh()
 
 func __print(d): print(d)
 
@@ -370,17 +367,25 @@ func remesh_work_loop():
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
         
-        if dirty_list_copy.size() > 0:
-            for chunk in dirty_list_copy:
-                chunk.process_and_remesh()
-            
-            var dc = dirty_list_copy.duplicate()
-            
-            trigger_save(dc)
-            
-            trigger_remesh_acceptance.bind(dirty_list_copy).call_deferred()
+        var start_time = Time.get_ticks_usec()/1000000.0
+        var chunk_count = dirty_list_copy.size()
+        while dirty_list_copy.size() > 0:
+            var chunk = dirty_list_copy.pop_front()
+            chunk.process_and_remesh()
+            chunk.accept_remesh.call_deferred()
+        var end_time = Time.get_ticks_usec()/1000000.0
+        var time = end_time - start_time
+        chunks_per_second_estimate = max(10, chunk_count/float(time))
         
-            dirtify_world.call_deferred()
+        #if dirty_list_copy.size() > 0:
+            #for chunk in dirty_list_copy:
+                
+            
+            #var dc = dirty_list_copy.duplicate()
+            #trigger_save(dc)
+            #trigger_remesh_acceptance.bind(dirty_list_copy).call_deferred()
+        
+            #dirtify_world.call_deferred()
         
         semaphore.post.call_deferred()
         semaphore.wait()
@@ -393,12 +398,9 @@ func remesh_work_oneshot():
     if dirty_list_copy.size() > 0:
         for chunk in dirty_list_copy:
             chunk.process_and_remesh()
+            chunk.accept_remesh()
         
-        var dc = dirty_list_copy.duplicate()
-        
-        trigger_save(dc)
-        
-        trigger_remesh_acceptance(dirty_list_copy)
+        trigger_save(dirty_list_copy)
     
         dirtify_world()
 
@@ -416,13 +418,29 @@ func dynamic_world_oneshot():
     if loaded_info:
         add_and_load_all([loaded_info])
 
-signal _trigger_world_work
+var chunks_per_second_estimate = 50
+
 func dynamic_world_loop():
     var semaphore = Semaphore.new()
     var work_frame = Engine.get_process_frames()
     var chunks_to_add_and_load = []
-    var _start = Time.get_ticks_usec()
+    #var first_wait = false
     while true:
+        dirty_chunk_mutex.lock()
+        var dirty_chunk_count = dirty_chunks.size()
+        dirty_chunk_mutex.unlock()
+        
+        # wait until next frame if there are too many unmeshed chunks loaded ahead of time
+        if dirty_chunk_count > chunks_per_second_estimate*0.05:
+            #if !first_wait:
+            #    print("waiting till next frame... (estimate ", chunks_per_second_estimate, ")")
+            #first_wait = true
+            semaphore.post.call_deferred()
+            semaphore.wait()
+            work_frame = Engine.get_process_frames()
+            continue
+        #first_wait = false
+        
         var player_chunk = get_player_chunk_coord()
         var facing_dir = get_player_facing_dir()
         
@@ -618,8 +636,7 @@ func dynamically_load_world(player_chunk, facing_dir):
             chunk_loaded_table_mutex.unlock()
             return [chunk]
         else:
-            
-            var vox = load_chunk(c_coord)
+            var chunk = load_chunk(c_coord)
             
             chunk_table_mutex.lock()
             
@@ -632,21 +649,18 @@ func dynamically_load_world(player_chunk, facing_dir):
                         load_chunk(c2_coord)
             
             chunk_table_mutex.unlock()
-            
-            vox.process_and_remesh()
-            chunks_meshed += 1
+            #chunk.process_and_remesh()
             
             chunk_loaded_table_mutex.lock()
-            chunks_loaded[c_coord] = vox
+            chunks_loaded[c_coord] = chunk
             chunk_loaded_table_mutex.unlock()
             
-            return [vox, c_coord]
+            return [chunk, c_coord]
     return null
 
 func add_and_load_all(chunks):
     if chunks.size() == 0:
         return
-    var _start = Time.get_ticks_usec()
     for chunk in chunks:
         if is_instance_valid(chunk[0]):
             if chunk.size() == 2:
@@ -657,21 +671,20 @@ func add_and_load_all(chunks):
                 chunk[0].inform_moved()
     
     var just_chunks = []
-    
-    #chunk_table_mutex.lock()
-    
     for chunk in chunks:
         if is_instance_valid(chunk[0]):
             var coord = chunk[0].chunk_position
             if not coord in f_index_table:
                 just_chunks.push_back(chunk[0])
     
-    #chunk_table_mutex.unlock()
+    dirty_chunk_mutex.lock()
+    dirty_chunks.append_array(just_chunks)
+    chunks_meshed += just_chunks.size()
+    dirty_chunk_mutex.unlock()
     
     trigger_save(just_chunks)
     
     dirtify_world()
-    #print("add time: ", (Time.get_ticks_usec() - _start)/1000.0)
 
 func initial_add_vox(vox : Node3D, coord : Vector3i):
     add_child(vox)

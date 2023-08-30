@@ -75,7 +75,6 @@ var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
 var remeshed = false
 func remesh():
-    var _start = Time.get_ticks_usec()
     
     #print("in remesh()")
     var neighbor_chunks = {}
