@@ -256,6 +256,9 @@ static func get_chunk_coord(coord) -> Vector3i:
 var dirty_chunk_mutex = Mutex.new()
 var dirty_chunks = []
 
+var new_chunk_mutex = Mutex.new()
+var new_chunks = []
+
 func dirtify_world():
     var player = DummySingleton.get_tree().get_first_node_in_group("Player")
     if player:
@@ -340,6 +343,10 @@ func _process(delta : float) -> void:
         if !remesh_work_thread.is_started():
             print("starting remesh work thread")
             remesh_work_thread.start(remesh_work_loop)
+        
+        if !first_time_mesh_work_thread.is_started():
+            print("starting remesh work thread")
+            first_time_mesh_work_thread.start(first_time_mesh_work_loop)
     else:
         dynamic_world_oneshot()
         remesh_work_oneshot()
@@ -354,11 +361,15 @@ func _process(delta : float) -> void:
     
     
 var remesh_work_thread = Thread.new()
-var remesh_work_wait_signal = Mutex.new()
+
+var first_time_mesh_work_thread = Thread.new()
 
 func __print(d): print(d)
 
-signal _trigger_remesh
+func trigger_remesh_accept(chunks):
+    for chunk in chunks:
+        chunk.accept_remesh()
+
 func remesh_work_loop():
     var semaphore = Semaphore.new()
     while true:
@@ -367,41 +378,55 @@ func remesh_work_loop():
         dirty_chunks = []
         dirty_chunk_mutex.unlock()
         
-        var start_time = Time.get_ticks_usec()/1000000.0
-        var chunk_count = dirty_list_copy.size()
-        while dirty_list_copy.size() > 0:
-            var chunk = dirty_list_copy.pop_front()
-            chunk.process_and_remesh()
-            chunk.accept_remesh.call_deferred()
-        var end_time = Time.get_ticks_usec()/1000000.0
-        var time = end_time - start_time
-        chunks_per_second_estimate = max(10, chunk_count/float(time))
-        
-        #if dirty_list_copy.size() > 0:
-            #for chunk in dirty_list_copy:
-                
-            
-            #var dc = dirty_list_copy.duplicate()
-            #trigger_save(dc)
-            #trigger_remesh_acceptance.bind(dirty_list_copy).call_deferred()
-        
-            #dirtify_world.call_deferred()
+        if dirty_list_copy.size() > 0:
+            for chunk in dirty_list_copy:
+                chunk.process_and_remesh()
+            trigger_save(dirty_list_copy.duplicate())
+            trigger_remesh_accept.call_deferred(dirty_list_copy)
+            dirtify_world.call_deferred()
         
         semaphore.post.call_deferred()
         semaphore.wait()
 
+var first_time_mesh_semaphore = Semaphore.new()
+func first_time_mesh_work_loop():
+    while true:
+        var chunk_count = 0
+        var start_time = Time.get_ticks_usec()/1000000.0
+        
+        new_chunk_mutex.lock()
+        while new_chunks.size() > 0:
+            var chunk = new_chunks.pop_front()
+            new_chunk_mutex.unlock()
+            chunk.process_and_remesh()
+            chunk.accept_remesh.call_deferred()
+            chunk_count += 1
+            new_chunk_mutex.lock()
+        new_chunk_mutex.unlock()
+        
+        var end_time = Time.get_ticks_usec()/1000000.0
+        var time = end_time - start_time
+        if chunk_count > 0:
+            chunks_per_second_estimate = max(10, chunk_count/float(time))
+        
+        first_time_mesh_semaphore.wait()
 
 func remesh_work_oneshot():
     var dirty_list_copy = dirty_chunks.duplicate()
     dirty_chunks = []
     
+    if new_chunks.size() > 0:
+        for chunk in new_chunks:
+            chunk.process_and_remesh()
+            chunk.accept_remesh()
+        new_chunks = []
+        dirtify_world()
+    
     if dirty_list_copy.size() > 0:
         for chunk in dirty_list_copy:
             chunk.process_and_remesh()
             chunk.accept_remesh()
-        
         trigger_save(dirty_list_copy)
-    
         dirtify_world()
 
 var world_work_thread = Thread.new()
@@ -426,12 +451,12 @@ func dynamic_world_loop():
     var chunks_to_add_and_load = []
     #var first_wait = false
     while true:
-        dirty_chunk_mutex.lock()
-        var dirty_chunk_count = dirty_chunks.size()
-        dirty_chunk_mutex.unlock()
+        new_chunk_mutex.lock()
+        var new_chunk_count = new_chunks.size()
+        new_chunk_mutex.unlock()
         
         # wait until next frame if there are too many unmeshed chunks loaded ahead of time
-        if dirty_chunk_count > chunks_per_second_estimate*0.05:
+        if new_chunk_count > chunks_per_second_estimate*0.05:
             #if !first_wait:
             #    print("waiting till next frame... (estimate ", chunks_per_second_estimate, ")")
             #first_wait = true
@@ -677,10 +702,11 @@ func add_and_load_all(chunks):
             if not coord in f_index_table:
                 just_chunks.push_back(chunk[0])
     
-    dirty_chunk_mutex.lock()
-    dirty_chunks.append_array(just_chunks)
-    chunks_meshed += just_chunks.size()
-    dirty_chunk_mutex.unlock()
+    new_chunk_mutex.lock()
+    new_chunks.append_array(just_chunks)
+    chunks_meshed += new_chunks.size()
+    new_chunk_mutex.unlock()
+    first_time_mesh_semaphore.post()
     
     trigger_save(just_chunks)
     
