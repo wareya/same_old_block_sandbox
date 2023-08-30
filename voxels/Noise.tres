@@ -1,0 +1,15 @@
+[gd_resource type="FastNoiseLite" format=3 uid="uid://usco3w3110wq"]
+
+[resource]
+noise_type = 5
+seed = 124
+fractal_octaves = 3
+fractal_lacunarity = 4.0
+fractal_gain = 0.3
+cellular_distance_function = 2
+cellular_jitter = 1.0
+cellular_return_type = 5
+domain_warp_amplitude = 35.295
+domain_warp_frequency = 0.035
+domain_warp_fractal_octaves = 1
+metadata/_preview_in_3d_space_ = true

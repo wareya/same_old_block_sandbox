@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3 uid="uid://dsn54jdwq4gwv"]
+
+[ext_resource type="Script" path="res://voxels/chunk_explorer.gd" id="1_adgv4"]
+
+[node name="ChunkExplorer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_adgv4")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Subsample" type="SpinBox" parent="CanvasLayer"]
+z_index = 1
+offset_right = 128.0
+offset_bottom = 31.0
+min_value = 1.0
+max_value = 256.0
+value = 1.0
+exp_edit = true
+rounded = true
+
+[node name="Label" type="Label" parent="CanvasLayer"]
+offset_top = 31.0
+offset_right = 100.0
+offset_bottom = 57.0
+text = "Subsampling"
+
+[node name="Seed" type="SpinBox" parent="CanvasLayer"]
+z_index = 1
+offset_top = 57.0
+offset_right = 128.0
+offset_bottom = 88.0
+min_value = -2.14748e+09
+max_value = 2.14748e+09
+value = 124.0
+rounded = true
+
+[node name="Label2" type="Label" parent="CanvasLayer"]
+offset_top = 88.0
+offset_right = 100.0
+offset_bottom = 114.0
+text = "Seed"
+
+[node name="Camera2D" type="Camera2D" parent="."]

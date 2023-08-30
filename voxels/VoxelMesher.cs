@@ -13,7 +13,7 @@ public partial class VoxelMesher : Node
         a.Z = (a.Z%b.Z + b.Z)%b.Z;
         return a;
     }
-    static Vector3I get_chunk_coord(Vector3I coord)
+    public static Vector3I get_chunk_coord(Vector3I coord)
     {
         var leftover = posmodvi(coord + VoxelGenerator.chunk_vec3i/2, VoxelGenerator.chunk_vec3i);
         var chunk_coord = coord - leftover + VoxelGenerator.chunk_vec3i/2;
@@ -185,8 +185,16 @@ public partial class VoxelMesher : Node
         public List<int> Indexes = new();
     };
     
+    static float meshing_time = 0.0f;
+    float pub_get_meshing_time()
+    {
+        return meshing_time;
+    }
+    
     Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
     {
+        var start = Godot.Time.GetTicksUsec()/1000000.0f;
+        
         var bounds = VoxelGenerator.bounds;
         
         var voxel_same_type = bool (int vox, int target_type) =>
@@ -284,8 +292,6 @@ public partial class VoxelMesher : Node
         
         var arrays = new Arrays[4]{new Arrays(), new Arrays(), new Arrays(), new Arrays()};
         
-        var start = Time.GetTicksUsec();
-        
         var offs = (Vector3)VoxelGenerator.chunk_vec3i/2.0f;
         
         int chunk_size_h = VoxelGenerator.chunk_size_h;
@@ -354,7 +360,7 @@ public partial class VoxelMesher : Node
                                 {
                                     var neighbor_coord = new Vector3I(x, y, z) + dir;
                                     var neighbor = get_voxel(neighbor_coord + chunk_position);
-                                    var neighbor_type = vox_get_type(vox);
+                                    var neighbor_type = vox_get_type(neighbor);
                                     var neighbor_allows_xparent = neighbor == 0 || neighbor_type != 0;
                                     var xparent_condition = vox_xparent && !neighbor_allows_xparent && d != 0 && (d == 1 || (side_val[d-2].Item2 >= 0));
                                     if (voxel_same_type(neighbor, vox_type) || xparent_condition)
@@ -598,6 +604,9 @@ public partial class VoxelMesher : Node
             arraysets.Add(mesharrays);
         }
         arraysets.Add(arrays[0].ColVerts.ToArray());
+        
+        var end = Godot.Time.GetTicksUsec()/1000000.0f;
+        meshing_time += end-start;
         
         return arraysets;
     }

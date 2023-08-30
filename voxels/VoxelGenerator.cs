@@ -136,8 +136,8 @@ public partial class VoxelGenerator : Node
         var x2 = (double)x;
         var z2 = (double)z;
         // add a small amount of jitter to x and z to make cliff faces less regular
-        x2 += Math.Abs(x)*2654435761%256/512.0-0.25;
-        z2 += Math.Abs(z)*2654435761%256/512.0-0.25;
+        x2 += (uint)x*2654435761%256/512.0-0.25;
+        z2 += (uint)z*2654435761%256/512.0-0.25;
         
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
@@ -149,12 +149,18 @@ public partial class VoxelGenerator : Node
     // gets 3d perlin noise
     public static float get_noise_3d_adjusted(int x, int y, int z, float freq = 1.0f)
     {
+        var x2 = (double)x;
+        var z2 = (double)z;
+        // add a small amount of jitter to x and z to make cliff faces less regular
+        x2 += (uint)x*2654435761%256/512.0-0.25;
+        z2 += (uint)z*2654435761%256/512.0-0.25;
+        
         var x_over = x > blend_threshold;
         var z_over = z > blend_threshold;
         if (x_over || z_over)
             return noise_blend_wrapper(x, z, freq, 0, 0, (x, z) => {return erosion_noise.GetNoise(x, y, z);});
         else
-            return erosion_noise.GetNoise(x*(double)freq, y*(double)freq, z*(double)freq);
+            return erosion_noise.GetNoise(x2*(double)freq, y*(double)freq, z2*(double)freq);
     }
     public static (int, int, int) height_at_global(int x, int z)
     {
@@ -191,6 +197,10 @@ public partial class VoxelGenerator : Node
         float height_noise_scale = 2.0f;
         height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
+        float height_continentize_freq = 1.25f;
+        float height_continentize_scale = 8.0f;
+        height += Mathf.Lerp(get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 15161, 12246)*0.5f + 0.5f, 0.0f, height_continentize_scale);
+        
         float rock_freq = 2.6f;
         float rock_scale = 4.0f;
         
@@ -222,39 +232,55 @@ public partial class VoxelGenerator : Node
     {
         return height_at_global(global_coord.X, global_coord.Z).Item1;
     }
+    static float erosion_min_strength = 0.0f;
+    static float erosion_max_strength = 96.0f;
     static float erosion_strength_at_global(int x, int z)
     {
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
-        var erosion_info_freq = 0.1f;
-        var min_strength = 0.0f;
-        var max_strength = 96.0f;
+        var erosion_info_freq = 0.3f;
         
-        float f = get_noise_2d_adjusted(x, -z, erosion_info_freq, 0, -1100)*0.5f + 0.5f;
+        float f = get_noise_2d_adjusted(x, -1-z, erosion_info_freq, 0, -11100)*0.5f + 0.5f;
+        f = Mathf.Clamp(Mathf.Lerp(-0.7f, 1.4f, f), 0.0f, 1.0f);
         f *= Math.Abs(f);
-        return Mathf.Lerp(min_strength, max_strength, f);
+        return Mathf.Lerp(erosion_min_strength, erosion_max_strength, f);
     }
     //static FastNoiseLite buh()
     static NoiseType buh()
     {
         var r = new NoiseType();
         r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
-        r.SetFractalType(FastNoiseLite.FractalType.PingPong);
+        r.SetFractalType(FastNoiseLite.FractalType.FBm);
         r.SetFractalOctaves(2);
-        r.SetFractalPingPongStrength(1.5f);
-        r.SetFrequency(0.02f);
+        r.SetFractalLacunarity(6.0f);
+        r.SetFractalGain(0.1f);
+        r.SetFrequency(0.006f);
         return r;
     }
     static NoiseType custom_noise = new NoiseType();
     static NoiseType erosion_noise = buh();
     static bool erosion_seed_set = false;
+    static float funwrap(float x)
+    {
+        //x *= 0.5f;
+        //x = Mathf.Clamp(x, -1.0f, 1.0f);
+        //return Mathf.Max(-1-x, Mathf.Min(x, 1-x))*2.0f;
+        x = Mathf.Clamp(x, -2.0f, 2.0f);
+        const float _denom = 3.079201435678f;//Mathf.Sqrt(3.0f)*16.0f/9.0f;
+        return (2+x)*x*(2-x)/_denom;
+    }
     static int get_erosion(Vector3I global_coord, float strength)
     {
+        if (strength == 0.0f)
+            return 0;
+        
         global_coord.Y -= height_offset;
         var out_scale = Mathf.Clamp(1.0f + global_coord.Y/16.0f, 0.0f, 1.0f);
         var ret = Mathf.Min(0.0f, get_noise_3d_adjusted(global_coord.X, global_coord.Y, global_coord.Z));
-        return (int)Mathf.Round(ret*Mathf.Abs(ret)*strength*out_scale);
+        ret = funwrap(ret*6.0f);
+        ret *= Math.Abs(ret);
+        return (int)Mathf.Round(ret*strength*out_scale);
     }
     // WARNING: for performance reasons, this does a coarse search.
     // its purpose is to find a y value that's solid but has air above it, and is close to the surface.
@@ -297,7 +323,142 @@ public partial class VoxelGenerator : Node
     {
         return true_height_at_global(global_coord.X, global_coord.Z).Item1;
     }
-    static List<(Vector3I, int, uint)> get_tree_coords((int, byte)[] chunk_info, Vector3I chunk_position)
+    public int[] pub_true_height_at_global_3(Vector3I global_coord)
+    {
+        var r = true_height_at_global(global_coord.X, global_coord.Z);
+        return new int[]{r.Item1, r.Item2, r.Item3};
+    }
+    
+    public Image pub_generate_image(Vector2I vec, int subsampling)
+    {
+        var chunk_size_modifier = 1;
+        
+        var chunk_size = chunk_size_h * chunk_size_modifier;
+        var chunk_size_2 = chunk_size * subsampling;
+        Image image = null;
+        var offset = -(chunk_size * subsampling)/2;
+        
+        image = Image.Create(chunk_size, chunk_size, true, Image.Format.Rgba8);
+        
+        foreach (var z in Enumerable.Range(0, chunk_size))
+        {
+            var z2 = z * chunk_size_2 / chunk_size;
+            var z3 = z2 + vec.Y + offset;
+            foreach (var x in Enumerable.Range(0, chunk_size))
+            {
+                var x2 = x * chunk_size_2 / chunk_size;
+                var x3 = x2 + vec.X + offset;
+                var (h, rock, sand) = true_height_at_global(x3, z3);
+                
+                Color c;
+                if (h >= sea_level)
+                {
+                    c = new Color(0.2f, 0.7f, 0.2f);
+                    if (subsampling > 3 && (x&1) == (z&1))
+                    {
+                        var biome_foliage = get_noise_2d_adjusted(x3, z3, 0.6f, -59234, 8143)*0.5f + 0.5f;
+                        var biome_trees = Mathf.Clamp(Mathf.Lerp(-0.5f, 1.2f, biome_foliage), 0.0f, 1.0f);
+                        var c2 = new Color(0.0f, 0.4f, 0.1f, biome_trees);
+                        c = c.Blend(c2);
+                    }
+                }
+                else
+                    c = new Color(0.5f, 0.4f, 0.2f);
+                
+                if (rock > h)
+                    c = new Color(0.5f, 0.55f, 0.6f);
+                else if(sand > h)
+                    c = new Color(0.95f, 0.9f, 0.7f);
+                
+                if (h < sea_level)
+                    c = c.Blend(new Color(0.1f, 0.4f, 1.0f, 0.7f));
+                
+                var level = (h - sea_level)%4/4.0f;
+                level = Mathf.Lerp(1.1f, 0.9f, level);
+                c *= level;
+                
+                level = ((h - sea_level)%128 + 128)%128/128.0f;
+                level = Mathf.Lerp(1.0f, 1.5f, level);
+                c *= level;
+                
+                c.A = 1.0f;
+                
+                //var asdf = erosion_strength_at_global(x3, z3)/erosion_max_strength;
+                //asdf = Mathf.Sqrt(asdf);
+                
+                image.SetPixel(x, z, c);
+            }
+        }
+        
+        var chunk_position = VoxelMesher.get_chunk_coord(new Vector3I(vec.X, 0, vec.Y));
+        
+        var all_tree_coords = new Dictionary<Vector2I, (int, int, uint)>();
+        foreach (var z in Enumerable.Range(-1, 3))
+        {
+            foreach (var x in Enumerable.Range(-1, 3))
+            {
+                var g_coord = chunk_position + new Vector3I(x * chunk_size_h, 0, z*chunk_size_h);
+                var coords =  get_tree_coords(g_coord);
+                foreach (var (c, y, a, b) in coords)
+                    all_tree_coords[c] = (y, a, b);
+            }
+        }
+        
+        all_tree_coords = filter_trees(all_tree_coords);
+        
+        foreach (var (_coord, (y, tall, grunge)) in all_tree_coords)
+        {
+            var (height, _, _) = true_height_at_global(_coord.X - chunk_size_h/2, _coord.Y - chunk_size_h/2);
+            var coord = new Vector3I(_coord.X, y, _coord.Y) - chunk_position;
+            coord.Y = height+1 - chunk_position.Y + chunk_size_v/2;
+            
+            coord /= subsampling;
+            
+            coord.X += (chunk_size_h - chunk_size_h/subsampling)/2;
+            coord.Z += (chunk_size_h - chunk_size_h/subsampling)/2;
+            
+            var start = -2;
+            var count = 5;
+            start += subsampling-1;
+            count = (int)MathF.Ceiling((float)count/subsampling);
+            if (count <= 0)
+                continue;
+            
+            foreach (var z in Enumerable.Range(start, count))
+            {
+                foreach (var x in Enumerable.Range(start, count))
+                {
+                    var limit = (count-1)*(count-1)/4.0f+0.25f;
+                    var badhash = grunge ^ GD.Hash(x) ^ GD.Hash(z);
+                    if (badhash%2 == 1)
+                        limit += 1.0f/subsampling;
+                    if (x*x + z*z > limit)
+                        continue;
+                    var x2 = x + coord.X;
+                    var z2 = z + coord.Z;
+                    if (x2 >= 0 && x2 < chunk_size_h && z2 >= 0 && z2 < chunk_size_h)
+                    {
+                        //image.GetPixel
+                        var c = new Color(0.0f, 0.4f, 0.1f);
+                        
+                        var level = (height - sea_level + tall)%4/4.0f;
+                        level = Mathf.Lerp(1.1f, 0.9f, level);
+                        c *= level;
+                        
+                        level = (Math.Abs(height - sea_level + 1 + tall)%128 + 128)%128/128.0f;
+                        level = Mathf.Lerp(1.0f, 1.5f, level);
+                        c *= level;
+                        
+                        image.SetPixel(x2, z2, c);
+                    }
+                }
+            }
+        }
+        
+        return image;
+    }
+    
+    static List<(Vector2I, int, int, uint)> get_tree_coords(Vector3I chunk_position)
     {
         var biome_foliage = get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
         
@@ -311,12 +472,16 @@ public partial class VoxelGenerator : Node
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
         var tree_count = rng.RandiRange(min, max);
         
-        var trees = new List<(Vector3I, int, uint)>();
-        var coords = new System.Collections.Generic.HashSet<(int, int)>();
+        var trees = new List<(Vector2I, int, int, uint)>();
+        var coords = new HashSet<(int, int)>();
         foreach (var _ in Enumerable.Range(0, tree_count))
         {
             var x = rng.RandiRange(0, chunk_size_h-1);
             var z = rng.RandiRange(0, chunk_size_h-1);
+            
+            var tall = allow_supertall ? rng.RandiRange(4, 8) : rng.RandiRange(4, 6);
+            var grunge = rng.Randi();
+            
             var last_was_x = false;
             var bad_spot = (int x, int z) =>
             {
@@ -350,19 +515,25 @@ public partial class VoxelGenerator : Node
             }
             if (retries == 0)
                 continue;
+            
+            var c_3d = new Vector3I(x, 0, z) + chunk_position;
+            
+            var c_3d2 = c_3d - new Vector3I(chunk_size_h/2, 0, chunk_size_h/2);
+            
+            var (height, rock, sand) = true_height_at_global(c_3d2.X, c_3d2.Z);
+            if (rock >= height || sand >= height || height < sea_level)
+                continue;
+            if (true_height_at_global(c_3d2.X - 2, c_3d2.Z - 2).Item1-3 > height)
+                continue;
+            if (true_height_at_global(c_3d2.X + 2, c_3d2.Z - 2).Item1-3 > height)
+                continue;
+            if (true_height_at_global(c_3d2.X - 2, c_3d2.Z - 2).Item1-3 > height)
+                continue;
+            if (true_height_at_global(c_3d2.X + 2, c_3d2.Z + 2).Item1-3 > height)
+                continue;
+            
             coords.Add((x, z));
-            
-            var tall = allow_supertall ? rng.RandiRange(4, 8) : rng.RandiRange(4, 6);
-            var grunge = rng.Randi();
-            
-            var info_i = chunk_size_h*z + x;
-            var (height, type) = chunk_info[info_i];
-            
-            if (height >= sea_level && type == 1) // 1 = grass
-            {
-                var c_3d = new Vector3I(x, height+1 - chunk_position.Y + chunk_size_v/2, z);
-                trees.Add((c_3d + chunk_position, tall, grunge));
-            }
+            trees.Add((new Vector2I(c_3d.X, c_3d.Z), c_3d.Y, tall, grunge));
         }
         
         return trees;
@@ -407,23 +578,35 @@ public partial class VoxelGenerator : Node
         if (bounds.HasPoint(coord))
             _voxels[coord_to_index(coord)] = type;
     }
+    public void _Set_Noiser(Noise noiser)
+    {
+        var n = (Godot.FastNoiseLite)noiser;
+        custom_noise.SetSeed(n.Seed);
+        custom_noise.SetFrequency(n.Frequency);
+        custom_noise.SetNoiseType(FastNoiseLite.NoiseType.Value);
+
+        custom_noise.SetFractalOctaves(n.FractalOctaves);
+        custom_noise.SetFractalLacunarity(n.FractalLacunarity);
+        custom_noise.SetFractalGain(n.FractalGain);
+        
+        erosion_noise.SetSeed(n.Seed+2);
+    }
+    static float terrain_time = 0.0f;
+    float pub_get_terrain_time()
+    {
+        return terrain_time;
+    }
     public void _Generate_Terrain_Only(Noise noiser, Vector3I chunk_position)
     {
-        var voxels = _voxels;
+        var start = Godot.Time.GetTicksUsec()/1000000.0f;
+        
         if (!erosion_seed_set)
         {
-            var n = (Godot.FastNoiseLite)noiser;
-            custom_noise.SetSeed(n.Seed);
-            custom_noise.SetFrequency(n.Frequency);
-            custom_noise.SetNoiseType(FastNoiseLite.NoiseType.Value);
-
-            custom_noise.SetFractalOctaves(n.FractalOctaves);
-            custom_noise.SetFractalLacunarity(n.FractalLacunarity);
-            custom_noise.SetFractalGain(n.FractalGain);
-            
-            erosion_noise.SetSeed(n.Seed+2);
+            _Set_Noiser(noiser);
             erosion_seed_set = true;
         }
+        
+        var voxels = _voxels;
         
         var offset = -chunk_vec3i/2 + chunk_position;
         var offset_2d = new Vector2I(offset.X, offset.Z);
@@ -534,41 +717,27 @@ public partial class VoxelGenerator : Node
                 }
             }
         }
+        var end = Godot.Time.GetTicksUsec()/1000000.0f;
+        terrain_time += end-start;
     }
-    public void _Generate(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
+    static Dictionary<Vector2I, (int, int, uint)> filter_trees(Dictionary<Vector2I, (int, int, uint)> all_tree_coords)
     {
-        var voxels = _voxels;
-        
-        System.Diagnostics.Debug.Assert(voxels.Length == chunk_size_h*chunk_size_h*chunk_size_v);
-        
-        Dictionary<Vector3I, VoxelGenerator> neighbors = new();
-        foreach (var k in neighbor_chunks.Keys)
-            neighbors[(Vector3I)k] = (VoxelGenerator)neighbor_chunks[k];
-        
-        var biome_foliage = get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
-        
-        var all_tree_coords = new List<(Vector3I, int, uint)>();
-        var upper_and_left_coords = new HashSet<Vector3I>();
-        foreach (var z in Enumerable.Range(-1, 3))
-        {
-            foreach (var x in Enumerable.Range(-1, 3))
-            {
-                var c_coord = chunk_position + new Vector3I(x * chunk_size_h, 0, z*chunk_size_h);
-                // FIXME get rid of chunk_info and calculate biome info inside get_tree_coords
-                var coords =  get_tree_coords(z == 0 && x == 0 ? chunk_info : neighbors[c_coord].chunk_info, c_coord);
-                all_tree_coords.AddRange(coords);
-                foreach (var (c, _, _) in coords)
-                    upper_and_left_coords.Add(c);
-            }
-        }
-        
-        foreach (var (_coord, tall, grunge) in all_tree_coords)
+        Dictionary<Vector2I, (int, int, uint)> copy = new();
+        foreach (var (_coord, (y, tall, grunge)) in all_tree_coords)
         {
             var bad = false;
-            foreach (var (other_x, _, other_z) in upper_and_left_coords)
+            foreach (var z in Enumerable.Range(-2, 5))
+            {
+                var other_z = z + _coord.Y;
+                foreach (var x in Enumerable.Range(-2, 5))
+                {
+                    var other_x = x + _coord.X;
+                }
+            }
+            foreach (var (other_x, other_z) in all_tree_coords.Keys)
             {
                 var diff_x = _coord.X - other_x;
-                var diff_z = _coord.Z - other_z;
+                var diff_z = _coord.Y - other_z;
                 if (diff_x < 0 || diff_z < 0)
                     continue;
                 if (diff_x == 0 && diff_z == 0)
@@ -582,7 +751,50 @@ public partial class VoxelGenerator : Node
             if (bad)
                 continue;
             
-            var coord = _coord - chunk_position;
+            copy[_coord] = (y, tall, grunge);
+        }
+        return copy;
+    }
+    static float decorate_time = 0.0f;
+    float pub_get_decorate_time()
+    {
+        return decorate_time;
+    }
+    public void _Generate(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
+    {
+        var start = Godot.Time.GetTicksUsec()/1000000.0f;
+        
+        var voxels = _voxels;
+        
+        System.Diagnostics.Debug.Assert(voxels.Length == chunk_size_h*chunk_size_h*chunk_size_v);
+        
+        Dictionary<Vector3I, VoxelGenerator> neighbors = new();
+        foreach (var k in neighbor_chunks.Keys)
+            neighbors[(Vector3I)k] = (VoxelGenerator)neighbor_chunks[k];
+        
+        var biome_foliage = get_noise_2d_adjusted(chunk_position.X, chunk_position.Z, 0.6f, -59234, 8143)*0.5f + 0.5f;
+        
+        var all_tree_coords = new Dictionary<Vector2I, (int, int, uint)>();
+        foreach (var z in Enumerable.Range(-1, 3))
+        {
+            foreach (var x in Enumerable.Range(-1, 3))
+            {
+                var g_coord = chunk_position + new Vector3I(x * chunk_size_h, 0, z*chunk_size_h);
+                var coords =  get_tree_coords(g_coord);
+                foreach (var (c, y, a, b) in coords)
+                {
+                    all_tree_coords[c] = (y, a, b);
+                }
+            }
+        }
+        
+        all_tree_coords = filter_trees(all_tree_coords);
+        
+        foreach (var (_coord, (_y, tall, grunge)) in all_tree_coords)
+        {
+            var (height, _, _) = true_height_at_global(_coord.X - chunk_size_h/2, _coord.Y - chunk_size_h/2);
+            var coord = new Vector3I(_coord.X, _y, _coord.Y) - chunk_position;
+            coord.Y = height+1 - chunk_position.Y + chunk_size_v/2;
             
             var leaf_bottom = Math.Max(2, tall-3);
             if (tall >= 7 && leaf_bottom > 2)
@@ -655,6 +867,8 @@ public partial class VoxelGenerator : Node
                     voxels[index] = type;
             }
         }
+        var end = Godot.Time.GetTicksUsec()/1000000.0f;
+        decorate_time += end-start;
     }
     ~VoxelGenerator()
     {

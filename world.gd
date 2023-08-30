@@ -217,7 +217,8 @@ func place_player():
         var world_top = (range_v_up+0.5)*Voxels.chunk_size_v
         var start_h = Voxels.GlobalGenerator.pub_height_at_global(Vector3i(x, 0, z))
         
-        print("testing ", start_h, " to ", world_top)
+        if start_h < Voxels.GlobalGenerator._sea_level:
+            continue
         
         for y in range(start_h-1, world_top):
             var vox = get_block(Vector3i(x, y, z))
@@ -229,8 +230,6 @@ func place_player():
                 land_height = y-1
                 break
         
-        if land_height >= Voxels.GlobalGenerator._sea_level:
-            break
     
     if land_height == -1000:
         print("failed to position player")
@@ -318,13 +317,16 @@ var do_threading = true
 var time_alive = 0.0
 func _process(delta : float) -> void:
     $FPS.text = (
-        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s" %
+        "FPS: %s\nchunks to load: %s\nchunks loaded: %s\nchunks generated: %s\nchunks at least partly generated: %s\nchunks meshed: %s\ntime spent meshing: %s\ntime spent generating terrain: %s\ntime spent decorating world: %s" %
         [Engine.get_frames_per_second(),
         world_work_num_unloaded,
         chunks_loaded.size(),
         generated_chunks.size(),
         all_chunks.size(),
         chunks_meshed,
+        snapped(VoxelMesher.pub_get_meshing_time(), 0.01),
+        snapped(Voxels.GlobalGenerator.pub_get_terrain_time(), 0.01),
+        snapped(Voxels.GlobalGenerator.pub_get_decorate_time(), 0.01),
         ]
     )
     
@@ -455,12 +457,13 @@ func dynamic_world_loop():
 # 768 = 24 chunk distance
 # 1024 = 32 chunk distance
 
+static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 #static var range_h = 96/Voxels.chunk_size_h/2
-static var range_h = 512/Voxels.chunk_size_h/2
+static var range_h = 512/_DummyGen._chunk_size_h/2
 #static var range_h = 256/Voxels.chunk_size_h/2
-static var range_v_down = 128/Voxels.chunk_size_v
+static var range_v_down = 128/_DummyGen._chunk_size_v
 #static var range_v_down = 64/Voxels.chunk_size
-static var range_v_up = 256/Voxels.chunk_size_v
+static var range_v_up = 256/_DummyGen._chunk_size_v
 #static var range_v_up = 64/Voxels.chunk_size
 
 static var _spawn_range = min(range_h, 3)
