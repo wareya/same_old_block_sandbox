@@ -60,14 +60,14 @@ public partial class VoxelGenerator : Node
 {
     //public static int chunk_size = 16;
     public const int chunk_size_h = 16;
-    public const int chunk_size_v = 48;
+    public const int chunk_size_v = 64;
     public int _chunk_size_h = chunk_size_h; // for visibility from gdscript (can't be static/const)
     public int _chunk_size_v = chunk_size_v; // for visibility from gdscript (can't be static/const)
     public static Vector3I chunk_vec3i = new Vector3I(chunk_size_h, chunk_size_v, chunk_size_h);
     public static Aabb bounds = new Aabb(new Vector3(), new Vector3(chunk_vec3i.X, chunk_vec3i.Y, chunk_vec3i.Z) - Vector3.One);
     
-    public const int height_offset = 8;
-    public const int sea_level = 6;
+    public const int height_offset = 2;
+    public const int sea_level = 0;
     public int _height_offset = height_offset; // for visibility from gdscript (can't be static/const)
     public int _sea_level = height_offset; // for visibility from gdscript (can't be static/const)
     
@@ -239,10 +239,11 @@ public partial class VoxelGenerator : Node
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
-        var erosion_info_freq = 0.3f;
+        var erosion_info_freq = 0.2f;
         
         float f = get_noise_2d_adjusted(x, -1-z, erosion_info_freq, 0, -11100)*0.5f + 0.5f;
         f = Mathf.Clamp(Mathf.Lerp(-0.7f, 1.4f, f), 0.0f, 1.0f);
+        f *= Math.Abs(f);
         f *= Math.Abs(f);
         return Mathf.Lerp(erosion_min_strength, erosion_max_strength, f);
     }
@@ -252,10 +253,10 @@ public partial class VoxelGenerator : Node
         var r = new NoiseType();
         r.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
         r.SetFractalType(FastNoiseLite.FractalType.FBm);
-        r.SetFractalOctaves(2);
-        r.SetFractalLacunarity(6.0f);
-        r.SetFractalGain(0.1f);
-        r.SetFrequency(0.006f);
+        r.SetFractalOctaves(3);
+        r.SetFractalLacunarity(5.0f);
+        r.SetFractalGain(0.15f);
+        r.SetFrequency(0.004f);
         return r;
     }
     static NoiseType custom_noise = new NoiseType();
@@ -277,9 +278,20 @@ public partial class VoxelGenerator : Node
         
         global_coord.Y -= height_offset;
         var out_scale = Mathf.Clamp(1.0f + global_coord.Y/16.0f, 0.0f, 1.0f);
-        var ret = Mathf.Min(0.0f, get_noise_3d_adjusted(global_coord.X, global_coord.Y, global_coord.Z));
-        ret = funwrap(ret*6.0f);
+        var center = get_noise_3d_adjusted(global_coord.X, global_coord.Y, global_coord.Z);
+        if (center > 0)
+            return 0;
+        
+        var ret = center;
+        ret = funwrap(ret*8.0f - 0.4f);
+        
+        // weaken half-ish of lines
+        //var next = get_noise_3d_adjusted(global_coord.X + 64, global_coord.Y, global_coord.Z);
+        //if (center > next)
+        //    ret /= (center-next)*100.0f + 1.0f;
+        
         ret *= Math.Abs(ret);
+        
         return (int)Mathf.Round(ret*strength*out_scale);
     }
     // WARNING: for performance reasons, this does a coarse search.
@@ -383,10 +395,15 @@ public partial class VoxelGenerator : Node
                 
                 c.A = 1.0f;
                 
+                //image.SetPixel(x, z, c);
+                
                 //var asdf = erosion_strength_at_global(x3, z3)/erosion_max_strength;
                 //asdf = Mathf.Sqrt(asdf);
                 
-                image.SetPixel(x, z, c);
+                var asdf = erosion_strength_at_global(x3, z3);
+                var asdf2 = -get_erosion(new Vector3I(x3, 0, z3), asdf)/erosion_max_strength*8.0f;
+                
+                image.SetPixel(x, z, new Color(asdf2, asdf2, asdf2));
             }
         }
         
@@ -471,6 +488,7 @@ public partial class VoxelGenerator : Node
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong) GD.Hash(chunk_position * new Vector3I(1, 0, 1));
         var tree_count = rng.RandiRange(min, max);
+        tree_count *= chunk_size_h/16*chunk_size_h/16;
         
         var trees = new List<(Vector2I, int, int, uint)>();
         var coords = new HashSet<(int, int)>();
@@ -634,7 +652,7 @@ public partial class VoxelGenerator : Node
                 prev_height_x[x] = eroded_height;
                 prev_height = eroded_height;
                 
-                var steep_threshold = 4;
+                var steep_threshold = 4;//eroded_height - rock_height + 1;
                 
                 var extremely_steep = false;
                 if (diff_north > steep_threshold)
@@ -667,23 +685,29 @@ public partial class VoxelGenerator : Node
                 
                 chunk_info[info_i] = (eroded_height, top_vox);
                 
-                var erosion_strength = erosion_strength_at_global(x + offset.X, z + offset.Z);
-                var erosion = get_erosion(new Vector3I(x, 0, z) + offset, erosion_strength);
+                var erosion_strength = erosion_strength_at_global(c_2d.X, c_2d.Y);
+                var erosion = get_erosion(new Vector3I(c_2d.X, offset.Y, c_2d.Y), erosion_strength);
                 
-                var max_y = Math.Clamp((int)(height - offset.Y) + 1, 0, chunk_size_v);
+                var max_y = Math.Clamp(height - offset.Y + 1, 0, chunk_size_v);
                 if (offset.Y < 0)
                     max_y = chunk_size_v;
                 
                 var i = coord_to_index(new Vector3I(x, 0, z));
+                var prev_skipped = false;
                 foreach (var y in Enumerable.Range(0, max_y))
                 {
-                    if (height - (y + offset.Y) > erosion_strength)
+                    if (height-1 - (y + offset.Y) > erosion_strength)
                     {
                         voxels[i] = 3; // rock
                         i += chunk_size_h*chunk_size_h;
+                        prev_skipped = true;
                         continue;
                     }
                     var c = new Vector3I(x, y, z) + offset;
+                    
+                    if (prev_skipped)
+                        erosion = get_erosion(c, erosion_strength);
+                    prev_skipped = false;
         
                     var base_noise = height - c.Y;
                     var noise_above = base_noise - 1;

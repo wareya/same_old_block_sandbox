@@ -43,20 +43,23 @@ var body_child = StaticBody3D.new()
 var body_childed : bool = false
 
 func _ready() -> void:
-    pass
+    if body_childed:
+        body_child.force_update_transform()
+    if meshinst_childed:
+        meshinst_child.force_update_transform()
 
 func _notification(what: int) -> void:
     if what == NOTIFICATION_PREDELETE:
         if meshinst_child and is_instance_valid(meshinst_child):
-            meshinst_child.free()
+            meshinst_child.queue_free()
             meshinst_child = null
         if body_child and is_instance_valid(body_child):
-            body_child.free()
+            body_child.queue_free()
             body_child = null
         
-        voxels.free()
+        voxels.queue_free()
         voxels = null
-        mesher.free()
+        mesher.queue_free()
         mesher = null
         
 
@@ -69,7 +72,7 @@ static func coord_to_index(coord : Vector3i) -> float:
     return coord.y*chunk_size_h*chunk_size_h + coord.z*chunk_size_h + coord.x
 
 var remesh_output_mutex = Mutex.new()
-var remesh_output = []
+var remesh_output = null
 
 var world : World = DummySingleton.get_tree().get_first_node_in_group("World")
 
@@ -86,6 +89,9 @@ func remesh():
                 var c = Vector3i(x, y, z)*chunk_vec3i + chunk_position
                 if c in world.all_chunks:
                     neighbor_chunks[c] = world.all_chunks[c].voxels
+    # FIXME this is in the wrong place (needs to be after remesh_arrays)
+    # but putting it in the right place hurts performance dramatically
+    # If you get a mysterious crash in the chunk unloading code, this is the reason.
     world.chunk_table_mutex.unlock()
     
     if side_cache.size() == 0:
@@ -194,7 +200,7 @@ func process_and_remesh():
 
 func accept_remesh():
     remesh_output_mutex.lock()
-    if remesh_output != []:
+    if remesh_output != null:
         var start = Time.get_ticks_usec()
         
         var mesh_child = ArrayMesh.new()
@@ -213,7 +219,7 @@ func accept_remesh():
         add_arrays.call(mesh_child, remesh_output[3], preload("res://voxels/VoxMatATest.tres"))
         var solids = remesh_output.back()
         #print(solids)
-        remesh_output = []
+        remesh_output = null
         
         remesh_output_mutex.unlock()
         
@@ -222,7 +228,8 @@ func accept_remesh():
             meshinst_child.mesh = mesh_child
             if !meshinst_childed:
                 add_child(meshinst_child)
-                meshinst_child.force_update_transform()
+                if is_inside_tree():
+                    meshinst_child.force_update_transform()
                 meshinst_childed = true
         else:
             meshinst_child.mesh = null
@@ -245,7 +252,8 @@ func accept_remesh():
         if collision_added:
             if !body_childed:
                 add_child(body_child)
-                body_child.force_update_transform()
+                if is_inside_tree():
+                    body_child.force_update_transform()
                 body_childed = true
         else:
             if body_childed:

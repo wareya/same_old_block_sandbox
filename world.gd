@@ -1,6 +1,7 @@
 extends Node3D
 class_name World
 
+var do_threading = true
 
 # actual world limit: 32-bit signed integer overflow
 var chunk_table_mutex = Mutex.new()
@@ -313,8 +314,6 @@ func set_block(coord : Vector3i, id : int):
 
 @export var base_noise : Noise = null
 
-var do_threading = true
-
 static var setup_time = 0.0
 
 var time_alive = 0.0
@@ -395,14 +394,14 @@ func first_time_mesh_work_loop():
         var start_time = Time.get_ticks_usec()/1000000.0
         
         new_chunk_mutex.lock()
-        while new_chunks.size() > 0:
+        if new_chunks.size() > 0:
             var chunk = new_chunks.pop_front()
             new_chunk_mutex.unlock()
             chunk.process_and_remesh()
             chunk.accept_remesh.call_deferred()
             chunk_count += 1
-            new_chunk_mutex.lock()
-        new_chunk_mutex.unlock()
+        else:
+            new_chunk_mutex.unlock()
         
         var end_time = Time.get_ticks_usec()/1000000.0
         var time = end_time - start_time
@@ -441,7 +440,7 @@ func dynamic_world_oneshot():
     
     var loaded_info = dynamically_load_world(player_chunk, facing_dir)
     if loaded_info:
-        add_and_load_all([loaded_info])
+        add_all([loaded_info])
 
 var chunks_per_second_estimate = 50
 
@@ -449,22 +448,21 @@ func dynamic_world_loop():
     var semaphore = Semaphore.new()
     var work_frame = Engine.get_process_frames()
     var chunks_to_add_and_load = []
-    #var first_wait = false
+    var first_wait = false
     while true:
         new_chunk_mutex.lock()
         var new_chunk_count = new_chunks.size()
         new_chunk_mutex.unlock()
         
-        # wait until next frame if there are too many unmeshed chunks loaded ahead of time
+        # wait until next frame if there are too many unmeshed chunks loaded ahead of time (one 20fps frame worth)
         if new_chunk_count > chunks_per_second_estimate*0.05:
             #if !first_wait:
             #    print("waiting till next frame... (estimate ", chunks_per_second_estimate, ")")
-            #first_wait = true
+            first_wait = true
             semaphore.post.call_deferred()
             semaphore.wait()
-            work_frame = Engine.get_process_frames()
             continue
-        #first_wait = false
+        first_wait = false
         
         var player_chunk = get_player_chunk_coord()
         var facing_dir = get_player_facing_dir()
@@ -473,25 +471,18 @@ func dynamic_world_loop():
         
         var loaded_info = dynamically_load_world(player_chunk, facing_dir)
         
-        if !loaded_info:
-            if chunks_to_add_and_load.size() > 0:
-                add_and_load_all.call_deferred(chunks_to_add_and_load)
-                chunks_to_add_and_load = []
-            
-            semaphore.post.call_deferred()
-            semaphore.wait()
-            work_frame = Engine.get_process_frames()
-            continue
-        
-        chunks_to_add_and_load.push_back(loaded_info)
+        if loaded_info:
+            chunks_to_add_and_load.push_back(loaded_info)
+            inform_new_chunks([loaded_info])
         
         var current_frame = Engine.get_process_frames()
-        if current_frame != work_frame:
+        if !loaded_info or current_frame != work_frame:
             if chunks_to_add_and_load.size() > 0:
-                add_and_load_all.call_deferred(chunks_to_add_and_load)
+                add_all.call_deferred(chunks_to_add_and_load)
                 chunks_to_add_and_load = []
-            #semaphore.post.call_deferred()
-            #semaphore.wait()
+            else:
+                semaphore.post.call_deferred()
+                semaphore.wait()
             work_frame = current_frame
         
 
@@ -505,7 +496,7 @@ static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 #static var range_h = 96/Voxels.chunk_size_h/2
 static var range_h = 512/_DummyGen._chunk_size_h/2
 #static var range_h = 256/Voxels.chunk_size_h/2
-static var range_v_down = 128/_DummyGen._chunk_size_v
+static var range_v_down = 64/_DummyGen._chunk_size_v
 #static var range_v_down = 64/Voxels.chunk_size
 static var range_v_up = 256/_DummyGen._chunk_size_v
 #static var range_v_up = 64/Voxels.chunk_size
@@ -549,10 +540,12 @@ func dynamically_unload_world(player_chunk):
         do_unload.call_deferred(unload_list)
 
 func do_unload(chunk_list : Array):
+    chunk_table_mutex.lock()
     for chunk in chunk_list:
         if chunk.is_inside_tree():
             chunk.get_parent().remove_child(chunk)
-        chunk.free()
+        chunk.queue_free()
+    chunk_table_mutex.unlock()
 
 var _find_chunks_prev_player_chunk = null
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
@@ -683,7 +676,23 @@ func dynamically_load_world(player_chunk, facing_dir):
             return [chunk, c_coord]
     return null
 
-func add_and_load_all(chunks):
+func inform_new_chunks(chunks):
+    var just_chunks = []
+    for chunk in chunks:
+        if is_instance_valid(chunk[0]):
+            var coord = chunk[0].chunk_position
+            if not coord in f_index_table:
+                just_chunks.push_back(chunk[0])
+    
+    new_chunk_mutex.lock()
+    new_chunks.append_array(just_chunks)
+    chunks_meshed += just_chunks.size()
+    new_chunk_mutex.unlock()
+    first_time_mesh_semaphore.post()
+    
+    trigger_save(just_chunks)
+
+func add_all(chunks):
     if chunks.size() == 0:
         return
     for chunk in chunks:
@@ -694,21 +703,6 @@ func add_and_load_all(chunks):
                 add_child(chunk[0])
                 chunk[0].global_position = chunk[0].chunk_position - world_origin
                 chunk[0].inform_moved()
-    
-    var just_chunks = []
-    for chunk in chunks:
-        if is_instance_valid(chunk[0]):
-            var coord = chunk[0].chunk_position
-            if not coord in f_index_table:
-                just_chunks.push_back(chunk[0])
-    
-    new_chunk_mutex.lock()
-    new_chunks.append_array(just_chunks)
-    chunks_meshed += new_chunks.size()
-    new_chunk_mutex.unlock()
-    first_time_mesh_semaphore.post()
-    
-    trigger_save(just_chunks)
     
     dirtify_world()
 
