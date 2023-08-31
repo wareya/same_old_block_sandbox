@@ -478,7 +478,7 @@ func check_chunk(start_pos, start_vel):
         return null
     else:
         var d = Voxels.GlobalGenerator.pub_true_height_at_global(Vector3i(global_position.round()) + world.world_origin)
-        $DebugLabel.text = "%s\n%s\n%s" % [chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
+        $DebugLabel.text = "%s\n%s\n%s\n%s" % [Vector3i(global_position.round()) + world.world_origin, chunk_coord, global_position.snapped(Vector3.ONE*0.1), d]
         var up_offset = 0.7 if !in_water else 0.3
         var block_in = world.get_block_with_origin(global_position + Vector3.UP*up_offset)
         var head_block_in = world.get_block_with_origin(global_position + Vector3.UP*1.5)

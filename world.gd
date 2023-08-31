@@ -158,26 +158,29 @@ func _ready() -> void:
     print(world_seed)
     print(base_noise.seed)
     
+    Voxels.GlobalGenerator._Set_Noiser(base_noise)
+    
+    place_player()
+    var player_c = get_player_chunk_coord()
+    print(player_c)
+    
     for y in range(-range_v_down, range_v_up+1):
         for z in range(-_spawn_range, _spawn_range+1):
             for x in range(-_spawn_range, _spawn_range+1):
-                var c = Vector3i(x, y, z)*Voxels.chunk_vec3i
+                var c = Vector3i(x, y, z)*Voxels.chunk_vec3i + player_c*Vector3i(1,0,1)
                 
                 load_chunk(c)
     
-    place_player()
     
-    var c = get_player_chunk_coord()
-    print(c)
-    var vox = all_chunks[c]
+    var vox = all_chunks[player_c]
     add_child(vox)
-    vox.global_position = c
+    vox.global_position = player_c
     
     vox.process_and_remesh()
     vox.accept_remesh()
     chunks_meshed += 1
     
-    chunks_loaded[c] = vox
+    chunks_loaded[player_c] = vox
     
     start_music_playlist()
 
@@ -205,30 +208,46 @@ func place_player():
     var land_height = -1
     var good_x = 0
     var good_z = 0
+    
     var _range = _spawn_range + 0.5
+    var _x = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
+    var _z = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
+    var start_coord = Vector2(_x, _z)
+    var rotation_per_attempt = 11.51 # degrees
+    var distance_per_attempt = 3
+    
     for _i in attempts:
-        var z = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
-        var x = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
+        var x = int(start_coord.x)
+        var z = int(start_coord.y)
+        start_coord = start_coord.rotated(deg_to_rad(rotation_per_attempt))
+        var len = start_coord.length()
+        start_coord = start_coord/len * (len + distance_per_attempt)
+        print("trying to position player at ", x ,",", z)
         
         land_height = -1000
         #var found_air = false
         
         var world_top = (range_v_up+0.5)*Voxels.chunk_size_v
-        var start_h = Voxels.GlobalGenerator.pub_height_at_global(Vector3i(x, 0, z))
         
+        var start_h = Voxels.GlobalGenerator.pub_true_height_at_global(Vector3i(x, 0, z))
         if start_h < Voxels.GlobalGenerator._sea_level:
             continue
         
-        for y in range(start_h-1, world_top):
+        print("above sea level... ", start_h, Vector2i(x, z))
+        
+        for y in range(start_h-2, world_top):
+            # FIXME: chunks don't exist yet
             var vox = get_block(Vector3i(x, y, z))
+            var vox2 = get_block(Vector3i(x, y+1, z))
             #var type = VoxelMesher.vox_get_type_pub(vox)
-            if vox == 0:
+            if vox == 0 and vox2 == 0:
                 good_x = x
                 good_z = z
                 #found_air = true
-                land_height = y-1
+                land_height = y
                 break
-        
+        if land_height != -1000:
+            break
     
     if land_height == -1000:
         print("failed to position player")

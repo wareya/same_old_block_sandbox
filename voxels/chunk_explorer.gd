@@ -105,9 +105,9 @@ var dragging = false
 func _input(event: InputEvent) -> void:
     if event is InputEventMouseButton:
         if event.is_released() && event.button_index == 4:
-            $Camera2D.zoom *= pow(2.0, 0.2)
+            $Camera2D.zoom *= pow(2.0, 0.25)
         if event.is_released() && event.button_index == 5:
-            $Camera2D.zoom /= pow(2.0, 0.2)
+            $Camera2D.zoom /= pow(2.0, 0.25)
         if event.button_index == 3:
             dragging = event.is_pressed()
     elif event is InputEventMouseMotion:

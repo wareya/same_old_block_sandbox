@@ -236,8 +236,6 @@ public partial class VoxelGenerator : Node
     static float erosion_max_strength = 96.0f;
     static float erosion_strength_at_global(int x, int z)
     {
-        return 0.0f;
-        
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
