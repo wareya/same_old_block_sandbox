@@ -441,6 +441,7 @@ func dynamic_world_oneshot():
     var loaded_info = dynamically_load_world(player_chunk, facing_dir)
     if loaded_info:
         add_all([loaded_info])
+        inform_new_chunks([loaded_info])
 
 var chunks_per_second_estimate = 50
 
@@ -497,9 +498,9 @@ static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 static var range_h = 512/_DummyGen._chunk_size_h/2
 #static var range_h = 256/Voxels.chunk_size_h/2
 static var range_v_down = 64/_DummyGen._chunk_size_v
-#static var range_v_down = 64/Voxels.chunk_size
+#static var range_v_down = 64/Voxels.chunk_size # for 48
 static var range_v_up = 256/_DummyGen._chunk_size_v
-#static var range_v_up = 64/Voxels.chunk_size
+#static var range_v_up = 64/Voxels.chunk_size # for 48
 
 static var _spawn_range = min(range_h, 3)
 

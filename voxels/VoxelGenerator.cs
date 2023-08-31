@@ -197,9 +197,9 @@ public partial class VoxelGenerator : Node
         float height_noise_scale = 2.0f;
         height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
-        float height_continentize_freq = 0.25f;
-        float height_continentize_scale = 4.0f;
-        height += get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 15161, 12246) * height_continentize_scale - 2.0f;
+        float height_continentize_freq = 0.11f;
+        float height_continentize_scale = 5.0f;
+        height += -blip(3.0f*get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 1561, 12246)) * height_continentize_scale - 1.0f;
         
         float rock_freq = 2.6f;
         float rock_scale = 4.0f;
@@ -236,6 +236,8 @@ public partial class VoxelGenerator : Node
     static float erosion_max_strength = 96.0f;
     static float erosion_strength_at_global(int x, int z)
     {
+        return 0.0f;
+        
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
@@ -270,6 +272,11 @@ public partial class VoxelGenerator : Node
         x = Mathf.Clamp(x, -2.0f, 2.0f);
         const float _denom = 3.079201435678f;//Mathf.Sqrt(3.0f)*16.0f/9.0f;
         return (2+x)*x*(2-x)/_denom;
+    }
+    static float blip(float x)
+    {
+        x = Mathf.Clamp(x, -1.0f, 1.0f);
+        return 1-x*x;
     }
     static int get_erosion(Vector3I global_coord, float strength)
     {
@@ -383,7 +390,7 @@ public partial class VoxelGenerator : Node
                     c = new Color(0.95f, 0.9f, 0.7f);
                 
                 if (h < sea_level)
-                    c = c.Blend(new Color(0.1f, 0.4f, 1.0f, 0.7f));
+                    c = c.Blend(new Color(0.0f, 0.2f, 1.0f, 0.7f));
                 
                 var level = (h - sea_level)%4/4.0f;
                 level = Mathf.Lerp(1.1f, 0.9f, level);
@@ -395,15 +402,15 @@ public partial class VoxelGenerator : Node
                 
                 c.A = 1.0f;
                 
-                //image.SetPixel(x, z, c);
+                image.SetPixel(x, z, c);
                 
                 //var asdf = erosion_strength_at_global(x3, z3)/erosion_max_strength;
                 //asdf = Mathf.Sqrt(asdf);
                 
-                var asdf = erosion_strength_at_global(x3, z3);
-                var asdf2 = -get_erosion(new Vector3I(x3, 0, z3), asdf)/erosion_max_strength*8.0f;
-                
-                image.SetPixel(x, z, new Color(asdf2, asdf2, asdf2));
+                //var asdf = erosion_strength_at_global(x3, z3);
+                //var asdf2 = -get_erosion(new Vector3I(x3, 0, z3), asdf)/erosion_max_strength*8.0f;
+                //
+                //image.SetPixel(x, z, new Color(asdf2, asdf2, asdf2));
             }
         }
         
