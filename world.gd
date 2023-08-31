@@ -539,13 +539,14 @@ func dynamically_unload_world(player_chunk):
         
         do_unload.call_deferred(unload_list)
 
+var chunk_deletion_mutex = Mutex.new()
 func do_unload(chunk_list : Array):
-    chunk_table_mutex.lock()
+    chunk_deletion_mutex.lock()
     for chunk in chunk_list:
         if chunk.is_inside_tree():
             chunk.get_parent().remove_child(chunk)
         chunk.queue_free()
-    chunk_table_mutex.unlock()
+    chunk_deletion_mutex.unlock()
 
 var _find_chunks_prev_player_chunk = null
 var _find_chunks_prev_facing_dir = Vector3.FORWARD

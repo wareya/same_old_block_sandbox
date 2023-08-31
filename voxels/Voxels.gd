@@ -83,16 +83,18 @@ func remesh():
     var neighbor_chunks = {}
     
     world.chunk_table_mutex.lock()
+    world.chunk_deletion_mutex.lock()
     for y in range(-1, 2):
         for z in range(-1, 2):
             for x in range(-1, 2):
                 var c = Vector3i(x, y, z)*chunk_vec3i + chunk_position
                 if c in world.all_chunks:
                     neighbor_chunks[c] = world.all_chunks[c].voxels
-    # FIXME this is in the wrong place (needs to be after remesh_arrays)
-    # but putting it in the right place hurts performance dramatically
-    # If you get a mysterious crash in the chunk unloading code, this is the reason.
     world.chunk_table_mutex.unlock()
+    
+    if !chunk_position in neighbor_chunks:
+        world.chunk_deletion_mutex.unlock()
+        return
     
     if side_cache.size() == 0:
         side_cache.resize(chunk_size_h*chunk_size_h*chunk_size_v)
@@ -110,6 +112,7 @@ func remesh():
     
     mesher.side_cache = side_cache
     var arrays = mesher.remesh_get_arrays(chunk_position, neighbor_chunks)
+    world.chunk_deletion_mutex.unlock()
     side_cache = mesher.side_cache
     
     # wrong way, have to do it to avoid crashes
