@@ -299,6 +299,11 @@ func _process(delta: float) -> void:
     # for controller camera control
     #handle_stick_input(delta)
     
+    if Input.is_key_pressed(KEY_0):
+        $CameraHolder/Camera3D.near = 2.0
+    else:
+        $CameraHolder/Camera3D.near = 0.01
+    
     if Input.is_action_just_pressed("farlands_finder"):
         #global_position.x += 8388608.0*8.0*8.0
         global_position.x += 1500.0

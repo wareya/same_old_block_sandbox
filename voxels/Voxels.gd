@@ -111,7 +111,7 @@ func remesh():
     dirty_command_mutex.unlock()
     
     mesher.side_cache = side_cache
-    var arrays = mesher.remesh_get_arrays(chunk_position, neighbor_chunks)
+    var arrays = mesher.remesh_get_arrays(chunk_position, neighbor_chunks, 1)
     world.chunk_deletion_mutex.unlock()
     side_cache = mesher.side_cache
     

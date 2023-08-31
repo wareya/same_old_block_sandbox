@@ -69,7 +69,7 @@ public partial class VoxelGenerator : Node
     public const int height_offset = 2;
     public const int sea_level = 0;
     public int _height_offset = height_offset; // for visibility from gdscript (can't be static/const)
-    public int _sea_level = height_offset; // for visibility from gdscript (can't be static/const)
+    public int _sea_level = sea_level; // for visibility from gdscript (can't be static/const)
     
     static float _adjust_val(float x, float n)
     {
@@ -198,8 +198,8 @@ public partial class VoxelGenerator : Node
         height += get_noise_2d_adjusted(x, z, height_noise_freq, 51, 1301) * height_noise_scale;
         
         float height_continentize_freq = 0.11f;
-        float height_continentize_scale = 5.0f;
-        height += -blip(3.0f*get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 1561, 12246)) * height_continentize_scale - 1.0f;
+        float height_continentize_scale = 8.0f;
+        height += -blip(5.0f*get_noise_2d_adjusted(x-z, x+z, height_continentize_freq, 1561, 12246)) * height_continentize_scale - 1.0f;
         
         float rock_freq = 2.6f;
         float rock_scale = 4.0f;
@@ -239,7 +239,7 @@ public partial class VoxelGenerator : Node
         x += chunk_size_h/2;
         z += chunk_size_h/2;
         
-        var erosion_info_freq = 0.2f;
+        var erosion_info_freq = 0.31f;
         
         float f = get_noise_2d_adjusted(x, -1-z, erosion_info_freq, 0, -11100)*0.5f + 0.5f;
         f = Mathf.Clamp(Mathf.Lerp(-0.7f, 1.4f, f), 0.0f, 1.0f);
@@ -256,7 +256,7 @@ public partial class VoxelGenerator : Node
         r.SetFractalOctaves(3);
         r.SetFractalLacunarity(5.0f);
         r.SetFractalGain(0.15f);
-        r.SetFrequency(0.004f);
+        r.SetFrequency(0.005f);
         return r;
     }
     static NoiseType custom_noise = new NoiseType();

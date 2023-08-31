@@ -194,7 +194,7 @@ public partial class VoxelMesher : Node
         return meshing_time;
     }
     
-    Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks)
+    Godot.Collections.Array remesh_get_arrays(Vector3I chunk_position, Godot.Collections.Dictionary neighbor_chunks, int stride)
     {
         var start = Godot.Time.GetTicksUsec()/1000000.0f;
         
@@ -297,7 +297,7 @@ public partial class VoxelMesher : Node
         int chunk_size_h = VoxelGenerator.chunk_size_h;
         int chunk_size_v = VoxelGenerator.chunk_size_v;
         
-        foreach (var y in Enumerable.Range(0, chunk_size_v))
+        for (var y = 0; y < chunk_size_v; y += stride)
         {
             var prev_x = new (int, byte, int[], byte[], (int, int)[], bool, int[])[chunk_size_h];
             var prev_x_need_clear = new bool[chunk_size_h];
@@ -310,7 +310,7 @@ public partial class VoxelMesher : Node
             var prev_i = new int[]{0, 0, 0, 0};
             var prev_col_i = new int[]{0, 0, 0, 0};
             
-            foreach (var z in Enumerable.Range(0, chunk_size_h))
+            for (var z = 0; z < chunk_size_h; z += stride)
             {
                 var prev_solid = false;
                 var prev_type = -1;
@@ -329,7 +329,7 @@ public partial class VoxelMesher : Node
                 
                 var prev_side_val = new (int, int)[]{(0,0), (0,0), (0,0), (0,0)};
                 
-                foreach (var x in Enumerable.Range(0, chunk_size_h))
+                for (var x = 0; x < chunk_size_h; x += stride)
                 {
                     var local_coord = new Vector3I(x, y, z);
                     var vox_index = calc_index(local_coord);
@@ -337,13 +337,19 @@ public partial class VoxelMesher : Node
                     
                     var vox = voxels[vox_index];
                     var vox_type = vox_get_type(vox);
+                    if (vox_type == 3 && stride > 1)
+                    {
+                        vox = 0;
+                        vox_type = 0;
+                    }
+                    
                     var vox_atest = vox_type == 1;
                     var vox_xparent = vox_type != 0;
                     
                     var side_val = new (int, int)[]{(0,0), (0,0), (0,0), (0,0)};
                     
                     var top_val = 16;
-                    if (vox_type == 2)
+                    if (vox_type == 2 && stride == 1)
                         (top_val, side_val) = calc_water_info(local_coord + chunk_position);
                     
                     // 0xFF = not calculated yet
@@ -357,7 +363,7 @@ public partial class VoxelMesher : Node
                                 var dir = dirs[d];
                                 if (!vox_atest)
                                 {
-                                    var neighbor_coord = new Vector3I(x, y, z) + dir;
+                                    var neighbor_coord = new Vector3I(x, y, z) + dir*stride;
                                     var neighbor = get_voxel(neighbor_coord + chunk_position);
                                     var neighbor_type = vox_get_type(neighbor);
                                     var neighbor_allows_xparent = neighbor == 0 || neighbor_type != 0;
@@ -378,8 +384,8 @@ public partial class VoxelMesher : Node
                                         {
                                             if (_y == 0 && _x == 0)
                                                 continue;
-                                            var next_coord = new Vector3I(x, y, z) + _y*up_dir + _x*right_dir;
-                                            var occlude_coord = next_coord + dir;
+                                            var next_coord = new Vector3I(x, y, z) + _y*up_dir*stride + _x*right_dir*stride;
+                                            var occlude_coord = next_coord + dir*stride;
                                             var bit_is_same = 0;
                                             
                                             var next = get_voxel(next_coord + chunk_position);
@@ -498,7 +504,7 @@ public partial class VoxelMesher : Node
                                         var adder = d < 4 ? new Vector3(1.0f, 0.0f, 0.0f) : new Vector3(0.0f, 0.0f, 1.0f);
                                         
                                         foreach (var i in f)
-                                            slice[base_index+i] += adder;
+                                            slice[base_index+i] += adder*stride;
                                     };
                                     
                                     var solid_extended = false;
@@ -563,7 +569,7 @@ public partial class VoxelMesher : Node
                                         
                                         for (int i = 0; i < 4; i++)
                                         {
-                                            var v = vert_table[d*4 + i];
+                                            var v = vert_table[d*4 + i] * stride - new Vector3(stride-1,stride-1,stride-1)/2.0f;
                                             if (vox_xparent)
                                             {
                                                 if (d == 0 && top_val != info_max)

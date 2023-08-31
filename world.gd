@@ -214,7 +214,7 @@ func place_player():
     var _z = randi_range(-Voxels.chunk_size_h*_range, Voxels.chunk_size_h*_range)
     var start_coord = Vector2(_x, _z)
     var rotation_per_attempt = 11.51 # degrees
-    var distance_per_attempt = 3
+    var distance_per_attempt = 1
     
     for _i in attempts:
         var x = int(start_coord.x)
@@ -222,19 +222,19 @@ func place_player():
         start_coord = start_coord.rotated(deg_to_rad(rotation_per_attempt))
         var len = start_coord.length()
         start_coord = start_coord/len * (len + distance_per_attempt)
-        print("trying to position player at ", x ,",", z)
         
-        land_height = -1000
         #var found_air = false
         
         var world_top = (range_v_up+0.5)*Voxels.chunk_size_v
         
         var start_h = Voxels.GlobalGenerator.pub_true_height_at_global(Vector3i(x, 0, z))
+        print("trying to position player at ", x ,",", z, "...", start_h,",",world_top,",",Voxels.GlobalGenerator._sea_level)
         if start_h < Voxels.GlobalGenerator._sea_level:
             continue
         
         print("above sea level... ", start_h, Vector2i(x, z))
         
+        land_height = -1000
         for y in range(start_h-2, world_top):
             # FIXME: chunks don't exist yet
             var vox = get_block(Vector3i(x, y, z))
@@ -514,7 +514,8 @@ func dynamic_world_loop():
 
 static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 #static var range_h = 96/Voxels.chunk_size_h/2
-static var range_h = 512/_DummyGen._chunk_size_h/2
+static var range_h = 512/_DummyGen._chunk_size_h/2 # 16
+#static var range_h = 1024/_DummyGen._chunk_size_h/2 # 32
 #static var range_h = 256/Voxels.chunk_size_h/2
 static var range_v_down = 64/_DummyGen._chunk_size_v
 #static var range_v_down = 64/Voxels.chunk_size # for 48

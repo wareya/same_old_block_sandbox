@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://addons/scrolllistcontainer/ScrollGridContainer.gd" id="5_cqj76"]
 [ext_resource type="Texture2D" uid="uid://c02rxtjo1ive8" path="res://art/ui_e.png" id="6_u0mvo"]
 [ext_resource type="Script" path="res://player/ActiveInventory.gd" id="7_n6uuq"]
+[ext_resource type="Texture2D" uid="uid://sc7nyacxivmv" path="res://art/ui_a.png" id="8_4r163"]
 [ext_resource type="Texture2D" uid="uid://clav75neu5yjm" path="res://art/ui_b.png" id="8_u1bnx"]
 [ext_resource type="Script" path="res://InventoryItem.gd" id="9_ga6ka"]
 
@@ -103,9 +104,6 @@ height = 16
 outline_size = 5
 outline_color = Color(0, 0, 0, 1)
 shadow_size = 0
-
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_hwarr"]
-load_path = "res://.godot/imported/ui_b.png-4f62da27e2a73ab08ff42d7d3a071951.ctex"
 
 [node name="Player" type="CharacterBody3D" groups=["Player"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 17.3011, 0)
@@ -710,7 +708,7 @@ background_shrink = Vector2(3, 3)
 [node name="NinePatchRect1" type="NinePatchRect" parent="ActiveInventory"]
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-texture = SubResource("CompressedTexture2D_hwarr")
+texture = ExtResource("8_4r163")
 patch_margin_left = 12
 patch_margin_top = 12
 patch_margin_right = 12
