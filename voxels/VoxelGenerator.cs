@@ -610,13 +610,16 @@ public partial class VoxelGenerator : Node
     {
         var n = (Godot.FastNoiseLite)noiser;
         custom_noise.SetSeed(n.Seed);
-        custom_noise.SetFrequency(n.Frequency);
         custom_noise.SetNoiseType(FastNoiseLite.NoiseType.Value);
+        custom_noise.SetFrequency(n.Frequency);
+        custom_noise.SetFractalGain(n.FractalGain);
+        //custom_noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        //custom_noise.SetFrequency(n.Frequency);
+        //custom_noise.SetFractalGain(n.FractalGain);
 
         custom_noise.SetFractalOctaves(n.FractalOctaves);
         //custom_noise.SetFractalOctaves(1);
         custom_noise.SetFractalLacunarity(n.FractalLacunarity);
-        custom_noise.SetFractalGain(n.FractalGain);
         
         erosion_noise.SetSeed(n.Seed+2);
     }
