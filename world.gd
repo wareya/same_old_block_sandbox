@@ -17,8 +17,9 @@ var backing_file : FileAccess = null
 func _init():
     randomize()
     world_seed = randi()
-    world_seed = 124
+    #world_seed = 124
     #world_seed = 162
+    world_seed = 111
     #world_seed = 6143
     #world_seed = 733
     #world_seed = 578

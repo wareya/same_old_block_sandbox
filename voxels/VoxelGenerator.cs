@@ -400,10 +400,10 @@ public partial class VoxelGenerator : Node
                 
                 c.A = 1.0f;
                 
-                //float f = get_noise_2d_adjusted(x3, z3, 1.0f)*0.5f+0.5f;
-                //c.R = f;
-                //c.G = f;
-                //c.B = f;
+                float f = get_noise_2d_adjusted(x3, z3, 1.0f)*0.5f+0.5f;
+                c.R = f;
+                c.G = f;
+                c.B = f;
                 
                 image.SetPixel(x, z, c);
                 
@@ -618,7 +618,7 @@ public partial class VoxelGenerator : Node
         //custom_noise.SetFractalGain(n.FractalGain);
 
         custom_noise.SetFractalOctaves(n.FractalOctaves);
-        //custom_noise.SetFractalOctaves(1);
+        custom_noise.SetFractalOctaves(1);
         custom_noise.SetFractalLacunarity(n.FractalLacunarity);
         
         erosion_noise.SetSeed(n.Seed+2);

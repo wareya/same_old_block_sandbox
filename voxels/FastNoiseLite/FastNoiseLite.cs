@@ -539,6 +539,7 @@ public class FastNoiseLite
 
     [MethodImpl(INLINE)]
     private static float FastAbs(float f) { return f < 0 ? -f : f; }
+    private static FNLfloat FastAbsFNLF(FNLfloat f) { return f < 0 ? -f : f; }
 
     [MethodImpl(INLINE)]
     private static float FastSqrt(float f) { return (float)Math.Sqrt(f); }
@@ -2022,66 +2023,21 @@ public class FastNoiseLite
             zs) * (1 / (1.5f * 1.5f * 1.5f));
     }
 
-
-    // Value Noise
-
     [MethodImpl(INLINE)]
-    private unsafe static int BoolToInt(bool a)
+    private static double Triwave(double x)
     {
-        return *(byte*)&a;
+        //abs(abs(x)%2-1)
+        //return Math.Abs(Math.Abs(x)%2.0 - 1.0) - 0.5;
+        x /= 2;
+        return Math.Abs(x-FastFloor(x)-0.5)*2.0;
     }
-
-    private float __SingleValue(int seed, FNLfloat x, FNLfloat y)
-    {
-        //x *= 0.86602540378; //sqrt(3)
-        x += y*0.5;
-        y *= 1.0/0.86602540378; //sqrt(3)
-        
-        int x0 = FastFloor(x);
-        int y0 = FastFloor(y);
-
-        float xs = (float)(x - x0);
-        float ys = (float)(y - y0);
-        
-        x0 *= PrimeX;
-        y0 *= PrimeY;
-        int x1 = x0 + PrimeX;
-        int y1 = y0 + PrimeY;
-        
-        int first = BoolToInt(xs > ys);
-        float first_f = first;
-        uint mask_second = ((uint)first)-1;
-        uint mask_first = ~mask_second;
-        
-        float ay = ys * first_f;
-        float ayf = ay - first_f;
-        float yd = ys - ay;
-        xs = (ay - xs) / (ayf - yd);
-            
-        float a_a = 1.0f - ys + xs*ayf;
-        float c_a = ay + xs*yd;
-        float b_a = 1.0f - a_a - c_a;
-        
-        float a = ValCoord(seed, x0, y0);
-        float c = ValCoord(seed, x1, y1);
-        float b = ValCoord(seed, x0 + (int)(PrimeX&mask_first), y0 + (int)(PrimeY&mask_second));
-        
-        // smoothing
-        a_a *= a_a;
-        b_a *= b_a;
-        c_a *= c_a;
-        float f = 1.0f / (a_a + b_a + c_a);
-        //a_a *= f;
-        //b_a *= f;
-        //c_a *= f;
-        
-        return (a * a_a + b * b_a + c * c_a) * f;
-    }
-
+    
+    // Value Noise
     private float _SingleValue(int seed, FNLfloat x, FNLfloat y)
     {
-        x *= 0.86602540378; //sqrt(3)
-        x += y*0.5;
+        //x *= 0.86602540378; //sqrt(3)
+        //x += y*0.5;
+        //x += Triwave(y)*0.5;
         
         int x0 = FastFloor(x);
         int y0 = FastFloor(y);
@@ -2093,22 +2049,47 @@ public class FastNoiseLite
         int x1 = x0 + PrimeX;
         int y1 = y0 + PrimeY;
         
-        int first = xs > ys ? 1 : 0;
+        //if (!ocmp)
+        //{
+            //bool cmp = xs > ys;
+            
+            //int first = cmp ? 1 : 0;
+            //
+            //float a_a = 1.0f - (cmp ? xs : ys);
+            //float c_a = cmp ? ys : xs;
+            //float b_a = 1.0f - a_a - c_a;
+            //
+            //float a = ValCoord(seed, x0 + PrimeX*ocmp, y0);
+            //float c = ValCoord(seed, x1, y1 - PrimeY*ocmp);
+            //float b = ValCoord(seed, x0 + PrimeX*first, y1 - PrimeY*first);
         
-        float a_a = 1.0f - FastMax(ys, xs);
-        float c_a = FastMin(ys, xs);
+        //bool ocmp = (y0&1) == 0;
+        //int ocmpi = ocmp ? 1 : 0;
+        //float wuh = 1.0f - xs;
+        //xs = ocmp ? wuh : xs;
+        
+        bool cmp = xs > ys;
+        
+        int first = cmp ? 1 : 0;
+        
+        float a_a = 1.0f - (cmp ? xs : ys);
+        float c_a = cmp ? ys : xs;
         float b_a = 1.0f - a_a - c_a;
         
+        //float a = ValCoord(seed, x0 + PrimeX*ocmpi, y0);
+        //float c = ValCoord(seed, x1 - PrimeX*ocmpi, y1);
+        //float b = ValCoord(seed, x0 + PrimeX*(ocmpi^first), y1 - PrimeY*first);
         float a = ValCoord(seed, x0, y0);
         float c = ValCoord(seed, x1, y1);
-        float b = ValCoord(seed, x0 + PrimeX*first, y0 + PrimeY*(1-first));
+        float b = ValCoord(seed, x0 + PrimeX*first, y1 - PrimeY*first);
         
         // smoothing
-        a_a *= a_a;
-        b_a *= b_a;
-        c_a *= c_a;
-        float f = a_a + b_a + c_a;
-        return (a * a_a + b * b_a + c * c_a)/f;
+        var m = FastMin(FastMin(a_a, b_a), c_a);
+        a_a = Lerp(a_a*a_a, a_a, m);
+        b_a = Lerp(b_a*b_a, b_a, m);
+        c_a = Lerp(c_a*c_a, c_a, m);
+        
+        return (a * a_a + b * b_a + c * c_a)/(a_a + b_a + c_a);
     }
 
     private float SingleValue(int seed, FNLfloat x, FNLfloat y)
