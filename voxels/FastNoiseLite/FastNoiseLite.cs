@@ -2027,21 +2027,64 @@ public class FastNoiseLite
 
     private float SingleValue(int seed, FNLfloat x, FNLfloat y)
     {
+        x *= 0.86602540378; //sqrt(3)
+        x += y*0.5;
+        
         int x0 = FastFloor(x);
         int y0 = FastFloor(y);
 
-        float xs = InterpHermite((float)(x - x0));
-        float ys = InterpHermite((float)(y - y0));
-
+        //float xs = InterpHermite((float)(x - x0));
+        //float ys = InterpHermite((float)(y - y0));
+        float xs = (float)(x - x0);
+        float ys = (float)(y - y0);
+        
         x0 *= PrimeX;
         y0 *= PrimeY;
         int x1 = x0 + PrimeX;
         int y1 = y0 + PrimeY;
-
+        
+        /*
         float xf0 = Lerp(ValCoord(seed, x0, y0), ValCoord(seed, x1, y0), xs);
         float xf1 = Lerp(ValCoord(seed, x0, y1), ValCoord(seed, x1, y1), xs);
-
         return Lerp(xf0, xf1, ys);
+        */
+        
+        float a;
+        float b;
+        float c;
+        a = ValCoord(seed, x0, y0);
+        c = ValCoord(seed, x1, y1);
+        float a_a;
+        float b_a;
+        if (xs > ys) // top right
+        {
+            b = ValCoord(seed, x1, y0);
+            xs = (xs - ys) / (1.0f - ys);
+            a_a = (1.0f - xs) * (1.0f - ys);
+            b_a = xs * (1.0f - ys);
+        }
+        else // bottom left
+        {
+            b = ValCoord(seed, x0, y1);
+            xs /= ys;
+            a_a = 1.0f - ys;
+            b_a = (1.0f - xs) * ys;
+        }
+        float c_a = 1.0f - a_a - b_a;
+        
+        // smoothing
+        ///a_a = Lerp(a_a*a_a, a_a, a_a);
+        ///b_a = Lerp(b_a*b_a, b_a, b_a);
+        ///c_a = Lerp(c_a*c_a, c_a, c_a);
+        a_a = InterpHermite(a_a);
+        b_a = InterpHermite(b_a);
+        c_a = InterpHermite(c_a);
+        float f = 1.0f / (a_a + b_a + c_a);
+        a_a *= f;
+        b_a *= f;
+        c_a *= f;
+        
+        return a * a_a + b * b_a + c * c_a;
     }
 
     private float SingleValue(int seed, FNLfloat x, FNLfloat y, FNLfloat z)
