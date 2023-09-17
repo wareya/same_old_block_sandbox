@@ -618,7 +618,7 @@ public partial class VoxelGenerator : Node
         //custom_noise.SetFractalGain(n.FractalGain);
 
         custom_noise.SetFractalOctaves(n.FractalOctaves);
-        custom_noise.SetFractalOctaves(1);
+        //custom_noise.SetFractalOctaves(1);
         custom_noise.SetFractalLacunarity(n.FractalLacunarity);
         
         erosion_noise.SetSeed(n.Seed+2);

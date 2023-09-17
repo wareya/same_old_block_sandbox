@@ -2033,11 +2033,10 @@ public class FastNoiseLite
     }
     
     // Value Noise
-    private float _SingleValue(int seed, FNLfloat x, FNLfloat y)
+    private float SingleValue(int seed, FNLfloat x, FNLfloat y)
     {
-        //x *= 0.86602540378; //sqrt(3)
-        //x += y*0.5;
-        //x += Triwave(y)*0.5;
+        x *= 0.86602540378; //sqrt(3)
+        x += y*0.5;
         
         int x0 = FastFloor(x);
         int y0 = FastFloor(y);
@@ -2049,25 +2048,6 @@ public class FastNoiseLite
         int x1 = x0 + PrimeX;
         int y1 = y0 + PrimeY;
         
-        //if (!ocmp)
-        //{
-            //bool cmp = xs > ys;
-            
-            //int first = cmp ? 1 : 0;
-            //
-            //float a_a = 1.0f - (cmp ? xs : ys);
-            //float c_a = cmp ? ys : xs;
-            //float b_a = 1.0f - a_a - c_a;
-            //
-            //float a = ValCoord(seed, x0 + PrimeX*ocmp, y0);
-            //float c = ValCoord(seed, x1, y1 - PrimeY*ocmp);
-            //float b = ValCoord(seed, x0 + PrimeX*first, y1 - PrimeY*first);
-        
-        //bool ocmp = (y0&1) == 0;
-        //int ocmpi = ocmp ? 1 : 0;
-        //float wuh = 1.0f - xs;
-        //xs = ocmp ? wuh : xs;
-        
         bool cmp = xs > ys;
         
         int first = cmp ? 1 : 0;
@@ -2076,9 +2056,6 @@ public class FastNoiseLite
         float c_a = cmp ? ys : xs;
         float b_a = 1.0f - a_a - c_a;
         
-        //float a = ValCoord(seed, x0 + PrimeX*ocmpi, y0);
-        //float c = ValCoord(seed, x1 - PrimeX*ocmpi, y1);
-        //float b = ValCoord(seed, x0 + PrimeX*(ocmpi^first), y1 - PrimeY*first);
         float a = ValCoord(seed, x0, y0);
         float c = ValCoord(seed, x1, y1);
         float b = ValCoord(seed, x0 + PrimeX*first, y1 - PrimeY*first);
@@ -2092,7 +2069,7 @@ public class FastNoiseLite
         return (a * a_a + b * b_a + c * c_a)/(a_a + b_a + c_a);
     }
 
-    private float SingleValue(int seed, FNLfloat x, FNLfloat y)
+    private float _SingleValue(int seed, FNLfloat x, FNLfloat y)
     {
         int x0 = FastFloor(x);
         int y0 = FastFloor(y);
