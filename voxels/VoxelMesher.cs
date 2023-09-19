@@ -297,7 +297,7 @@ public partial class VoxelMesher : Node
         int chunk_size_h = VoxelGenerator.chunk_size_h;
         int chunk_size_v = VoxelGenerator.chunk_size_v;
         
-        for (var y = 0; y < chunk_size_v; y += stride)
+        for (var y = stride-1; y < chunk_size_v; y += stride)
         {
             var prev_x = new (int, byte, int[], byte[], (int, int)[], bool, int[])[chunk_size_h];
             var prev_x_need_clear = new bool[chunk_size_h];
@@ -336,6 +336,7 @@ public partial class VoxelMesher : Node
                     byte cached = side_cache[vox_index];
                     
                     var vox = voxels[vox_index];
+                    
                     var vox_type = vox_get_type(vox);
                     if (vox_type == 3 && stride > 1)
                     {
@@ -376,7 +377,8 @@ public partial class VoxelMesher : Node
                                 byte bit = 0;
                                 var right_dir = right_dirs[d];
                                 var up_dir = up_dirs[d];
-                                if (!vox_get_bitmaskless(vox))
+                                var bitmaskless = vox_get_bitmaskless(vox);
+                                if (!bitmaskless && stride == 1)
                                 {
                                     for (int _y = -1; _y <= 1; _y++)
                                     {
@@ -403,6 +405,8 @@ public partial class VoxelMesher : Node
                                         }
                                     }
                                 }
+                                if (!bitmaskless && stride != 1)
+                                    bitmask = 0xff;
                                 
                                 bitmask_cache[vox_index*6 + d] = bitmask;
                                 cached |= (byte)(1<<d);
@@ -518,6 +522,7 @@ public partial class VoxelMesher : Node
                                         solid_extended = true;
                                         extend_vert(arrays[0].ColVerts, d, prev_col_x_i[d-4], true);
                                     }
+                                    
                                     if (is_solid && !solid_extended)
                                     {
                                         var i_col_start = arrays[0].ColVerts.Count;
@@ -528,7 +533,7 @@ public partial class VoxelMesher : Node
                                             
                                         foreach (var i in new int[]{0, 1, 2, 2, 1, 3})
                                         {
-                                            var v = vert_table[d*4 + i];
+                                            var v = vert_table[d*4 + i] * stride - new Vector3(stride-1,stride-1,stride-1)/2.0f;
                                             arrays[0].ColVerts.Add(coord + v);
                                         }
                                     }

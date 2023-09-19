@@ -362,14 +362,15 @@ func _process(delta: float) -> void:
     
     if chunk:
         var pos = global_position
-        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.01, 0))):
-            global_position.y += 0.5
-        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.5, 0))):
-            global_position.y += 0.5
-        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.0, 0))):
-            global_position.y += 0.5
-        if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.5, 0))):
-            global_position.y += 0.5
+        if true:
+            if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.01, 0))):
+                global_position.y += 0.5
+            if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 0.5, 0))):
+                global_position.y += 0.5
+            if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.0, 0))):
+                global_position.y += 0.5
+            if is_solid.call(world.get_block_with_origin(pos + Vector3(0, 1.5, 0))):
+                global_position.y += 0.5
     
     $OverlayLayer/WaterOverlay.visible = head_in_water
     
@@ -539,6 +540,9 @@ func _unhandled_input(event: InputEvent) -> void:
                 Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
             else:
                 Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+        if event.pressed and event.keycode in [KEY_M]:
+            #RenderingServer.environment_set_sdfgi()
+            pass
 
 @export var third_person : bool = false
 @export var camera_smoothing_meters_per_sec : float = 3.0

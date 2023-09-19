@@ -1,7 +1,7 @@
 extends Node3D
 class_name World
 
-var do_threading = true
+var do_threading = false
 
 # actual world limit: 32-bit signed integer overflow
 var chunk_table_mutex = Mutex.new()
@@ -19,7 +19,9 @@ func _init():
     world_seed = randi()
     #world_seed = 124
     #world_seed = 162
-    world_seed = 111
+    #world_seed = 111
+    #world_seed = 82
+    world_seed = 51
     #world_seed = 6143
     #world_seed = 733
     #world_seed = 578
@@ -186,16 +188,17 @@ func _ready() -> void:
     
     start_music_playlist()
 
+const music_playlist = [
+    preload("res://bgm/main theme.ogg"),
+    preload("res://bgm/cold theme.ogg"),
+    preload("res://bgm/hot theme.ogg"),
+]
+var music_cursor = 0
 func start_music_playlist():
-    var playlist = [
-        preload("res://bgm/main theme.ogg"),
-        preload("res://bgm/cold theme.ogg"),
-        preload("res://bgm/hot theme.ogg"),
-    ]
     while true:
         await get_tree().create_timer(30.0).timeout
-        var next = playlist.pop_front()
-        playlist.push_back(next)
+        var next = music_playlist[music_cursor]
+        music_cursor = (music_cursor+1)%music_playlist.size()
         $BGMPlayer.stream = next
         if !$BGMPlayer.playing:
             $BGMPlayer.playing = true
@@ -379,7 +382,57 @@ func _process(delta : float) -> void:
     
     apply_chunks_offset()
     
+    day_night_cycle(delta)
+
+var time = 0.0
+func day_night_cycle(delta):
+    time += delta
+    $DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0/10.0)) # 20 minutes per day
     
+    #$DirectionalLight3D.rotation.x = sin(time*0.7)*0.2
+    #$DirectionalLight3D.rotation.y = cos(time*0.7)*0.2
+    
+    $StarSphere.rotation = $DirectionalLight3D.rotation
+    
+    var player = DummySingleton.get_tree().get_first_node_in_group("Player")
+    $DirectionalLight3D.global_position = player.global_position
+    $StarSphere.global_position = player.global_position
+    
+    var raw_amount = sin($DirectionalLight3D.rotation.x+PI)
+    
+    var amount = smoothstep(0.0, 1.0, clamp(raw_amount*10.0, 0.0, 1.0))
+    var coloration = Color(1.5, 0.6, 0.1).blend(Color(1,1,1, smoothstep(0.0, 1.0, pow(abs(raw_amount), 0.7))))
+    
+    ($DirectionalLight3D/SunSprite.material as StandardMaterial3D).emission = coloration
+    $DirectionalLight3D.light_color = coloration
+    $DirectionalLight3D.light_energy = amount
+    $DirectionalLight3D.shadow_enabled = amount > 0.0
+    
+    var env : Environment = $WorldEnvironment.environment
+    var sky : ProceduralSkyMaterial = env.sky.sky_material as ProceduralSkyMaterial
+    
+    var star_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0+raw_amount-0.3)*0.9, 0.0, 1.0))
+    $StarSphere.material.albedo_color.a = star_amount
+    var sky_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0-raw_amount-0.3)*0.9, 0.0, 1.0))
+    var sun_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0-raw_amount-0.1)*0.9, 0.0, 1.0))
+    
+    ($DirectionalLight3D/SunSprite.material as StandardMaterial3D).albedo_color.a = sun_amount
+    
+    var top = Color(0.16, 0.28, 0.55)
+    var horizon = Color(0.71, 0.82, 1.0)
+    var bottom = Color(0.13, 0.15, 0.2)
+    top = top * coloration * sky_amount
+    horizon = horizon * coloration * sky_amount
+    bottom = bottom * coloration * sky_amount
+    sky.sky_top_color = top
+    sky.sky_horizon_color = horizon
+    sky.ground_horizon_color = horizon
+    sky.ground_bottom_color = bottom
+    
+    var ambient = Color(0.39, 0.39, 0.39)
+    ambient = ambient * coloration * sky_amount
+    env.ambient_light_color = ambient
+
 var remesh_work_thread = Thread.new()
 
 var first_time_mesh_work_thread = Thread.new()
@@ -466,11 +519,11 @@ func dynamic_world_oneshot():
 
 var chunks_per_second_estimate = 50
 
+var dynamic_world_semaphore = Semaphore.new()
 func dynamic_world_loop():
-    var semaphore = Semaphore.new()
     var work_frame = Engine.get_process_frames()
     var chunks_to_add_and_load = []
-    var first_wait = false
+    #var first_wait = false
     while true:
         new_chunk_mutex.lock()
         var new_chunk_count = new_chunks.size()
@@ -480,11 +533,11 @@ func dynamic_world_loop():
         if new_chunk_count > chunks_per_second_estimate*0.05:
             #if !first_wait:
             #    print("waiting till next frame... (estimate ", chunks_per_second_estimate, ")")
-            first_wait = true
-            semaphore.post.call_deferred()
-            semaphore.wait()
+            #first_wait = true
+            dynamic_world_semaphore.post.call_deferred()
+            dynamic_world_semaphore.wait()
             continue
-        first_wait = false
+        #first_wait = false
         
         var player_chunk = get_player_chunk_coord()
         var facing_dir = get_player_facing_dir()
@@ -503,8 +556,8 @@ func dynamic_world_loop():
                 add_all.call_deferred(chunks_to_add_and_load)
                 chunks_to_add_and_load = []
             else:
-                semaphore.post.call_deferred()
-                semaphore.wait()
+                dynamic_world_semaphore.post.call_deferred()
+                dynamic_world_semaphore.wait()
             work_frame = current_frame
         
 
@@ -516,7 +569,8 @@ func dynamic_world_loop():
 
 static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 #static var range_h = 96/Voxels.chunk_size_h/2
-static var range_h = 512/_DummyGen._chunk_size_h/2 # 16
+#static var range_h = 512/_DummyGen._chunk_size_h/2 # 16
+static var range_h = 128/_DummyGen._chunk_size_h/2 # 16
 #static var range_h = 1024/_DummyGen._chunk_size_h/2 # 32
 #static var range_h = 256/Voxels.chunk_size_h/2
 static var range_v_down = 64/_DummyGen._chunk_size_v
@@ -571,6 +625,36 @@ func do_unload(chunk_list : Array):
         chunk.queue_free()
     chunk_deletion_mutex.unlock()
 
+func score_chunk(c_local : Vector3i, player_chunk : Vector3i, facing_dir : Vector3):
+    var c2 = c_local - player_chunk*Vector3i(0, 1, 0)
+    var c2_aux = c2/Voxels.chunk_vec3i
+    
+    var c_global = c_local + player_chunk*Vector3i(1, 0, 1)
+    
+    if c_global in chunks_loaded:
+        return null
+    
+    var h_delta_immediate = abs(c2_aux.y) + abs(c2_aux.z) + abs(c2_aux.x)
+    var h_delta_box = max(max(abs(c2_aux.y), abs(c2_aux.z)), abs(c2_aux.x))
+    
+    var h_dist = (c_local*Vector3i(1, 0, 1)).length()
+    var score = c2.length()
+    
+    if h_delta_immediate <= 1:
+        score -= 2000.0
+    elif h_delta_box <= 1:
+        score -= 1000.0
+    
+    if score > 30.0 and h_dist > 30.0:
+        var cn = c2/score
+        if cn.dot(facing_dir) < -0.5:
+            score += 200.0
+        if cn.dot(facing_dir) < 0.0:
+            score += 100.0
+        elif cn.dot(facing_dir) < 0.5:
+            score += 20.0
+    return score
+
 var _find_chunks_prev_player_chunk = null
 var _find_chunks_prev_facing_dir = Vector3.FORWARD
 var _find_chunks_unloaded_coords = []
@@ -589,35 +673,13 @@ func find_chunk_load_queue(player_chunk : Vector3i, facing_dir : Vector3):
                 for x in range(-range_h, range_h+1):
                     if Vector2i(x, z).length() > range_h+0.5:
                         continue
+                    
                     var c = Vector3i(x, y, z) * Voxels.chunk_vec3i
-                    
-                    var c2 = c - player_chunk*Vector3i(0, 1, 0)
-                    var c2_aux = c2/Voxels.chunk_vec3i
-                    
                     var c_global = c + player_chunk*Vector3i(1, 0, 1)
-                    
                     if c_global in chunks_loaded:
                         continue
                     
-                    var h_delta_immediate = abs(c2_aux.y) + abs(c2_aux.z) + abs(c2_aux.x)
-                    var h_delta_box = max(max(abs(c2_aux.y), abs(c2_aux.z)), abs(c2_aux.x))
-                    
-                    var h_dist = (c*Vector3i(1, 0, 1)).length()
-                    var score = c2.length()
-                    
-                    if h_delta_immediate <= 1:
-                        score -= 2000.0
-                    elif h_delta_box <= 1:
-                        score -= 1000.0
-                    
-                    if score > 30.0 and h_dist > 30.0:
-                        var cn = c2/score
-                        if cn.dot(facing_dir) < -0.5:
-                            score += 200.0
-                        if cn.dot(facing_dir) < 0.0:
-                            score += 100.0
-                        elif cn.dot(facing_dir) < 0.5:
-                            score += 20.0
+                    var score = score_chunk(c, player_chunk, facing_dir)
                     
                     _find_chunks_unloaded_coords.push_back([-score, c_global])
     

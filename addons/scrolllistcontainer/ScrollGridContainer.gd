@@ -195,7 +195,7 @@ func _notification(what):
             var h_pos = scrollbar_h.get_index()
             if h_pos+2 < child_count:
                 move_child(scrollbar_h, child_count-1)
-
+ 
 func _get_parent_canvasitem_of(node : CanvasItem) -> CanvasItem:
     var p = node.get_parent()
     if p and p is CanvasItem:

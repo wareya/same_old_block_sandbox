@@ -106,7 +106,6 @@ outline_color = Color(0, 0, 0, 1)
 shadow_size = 0
 
 [node name="Player" type="CharacterBody3D" groups=["Player"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 17.3011, 0)
 collision_layer = 2
 script = ExtResource("1_gyxg8")
 step_height = 0.6
@@ -125,10 +124,11 @@ color = Color(0.152941, 0.368627, 0.772549, 0.266667)
 
 [node name="OmniLight3D" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.638, 0)
-visible = false
-light_energy = 0.1
+light_color = Color(0.415686, 0.52549, 0.819608, 1)
+light_energy = 0.25
 light_indirect_energy = 16.0
 light_specular = 0.0
+omni_range = 25.0
 
 [node name="RemoteTransform3D" type="RemoteTransform3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
@@ -154,7 +154,7 @@ size = Vector2i(200, 200)
 render_target_update_mode = 0
 
 [node name="Node3D" type="Node3D" parent="Minimap/SubViewport"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 18.9261, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Minimap/SubViewport/Node3D"]
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 263.528, 0)
@@ -180,6 +180,7 @@ shape = SubResource("BoxShape3D_1dqmv")
 
 [node name="ReflectionProbe" type="ReflectionProbe" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
+update_mode = 1
 max_distance = 64.0
 size = Vector3(6400, 24, 6400)
 box_projection = true
@@ -795,3 +796,5 @@ patch_margin_left = 12
 patch_margin_top = 12
 patch_margin_right = 12
 patch_margin_bottom = 12
+
+[node name="Sprite2D" type="Sprite2D" parent="."]

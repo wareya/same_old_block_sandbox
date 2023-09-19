@@ -1,9 +1,40 @@
-[gd_scene load_steps=17 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=23 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="FastNoiseLite" uid="uid://usco3w3110wq" path="res://voxels/Noise.tres" id="2_y2ure"]
 [ext_resource type="Material" uid="uid://cf8645je7btd2" path="res://voxels/VoxMat.tres" id="2_yo0d7"]
 [ext_resource type="AudioStream" uid="uid://bt6lbbpn0ett7" path="res://bgm/main theme.ogg" id="3_ykvi2"]
+
+[sub_resource type="Gradient" id="Gradient_7p4ug"]
+interpolation_mode = 1
+offsets = PackedFloat32Array(0.79375, 0.84375)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_j8ls0"]
+noise_type = 4
+frequency = 0.313
+fractal_octaves = 2
+fractal_lacunarity = 0.01
+fractal_gain = 0.15
+fractal_weighted_strength = 1.0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_c5ge0"]
+width = 2048
+height = 2048
+color_ramp = SubResource("Gradient_7p4ug")
+noise = SubResource("FastNoiseLite_j8ls0")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_t1dgp"]
+transparency = 1
+blend_mode = 1
+depth_draw_mode = 2
+shading_mode = 0
+disable_ambient_light = true
+albedo_texture = SubResource("NoiseTexture2D_c5ge0")
+uv1_scale = Vector3(0.004, 0.004, 0.004)
+uv1_triplanar = true
+uv1_triplanar_sharpness = 150.0
+disable_receive_shadows = true
+billboard_keep_scale = true
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_a1coy"]
 sky_top_color = Color(0.160784, 0.282353, 0.54902, 1)
@@ -11,7 +42,7 @@ sky_horizon_color = Color(0.709804, 0.823529, 1, 1)
 sky_curve = 0.15529
 ground_bottom_color = Color(0.133333, 0.145098, 0.2, 1)
 ground_horizon_color = Color(0.72549, 0.831373, 1, 1)
-sun_curve = 0.0477959
+sun_angle_max = 0.0
 
 [sub_resource type="Sky" id="Sky_bj5pq"]
 sky_material = SubResource("ProceduralSkyMaterial_a1coy")
@@ -21,35 +52,38 @@ background_mode = 2
 sky = SubResource("Sky_bj5pq")
 ambient_light_source = 2
 ambient_light_color = Color(0.392157, 0.392157, 0.392157, 1)
-tonemap_exposure = 1.5
+tonemap_exposure = 1.2
 ssao_enabled = true
 ssao_light_affect = 1.0
 ssao_ao_channel_affect = 1.0
-ssil_enabled = true
 ssil_normal_rejection = 0.7
-sdfgi_use_occlusion = true
-sdfgi_min_cell_size = 0.25
-sdfgi_cascade0_distance = 16.0
-sdfgi_max_distance = 256.0
 sdfgi_y_scale = 0
 glow_enabled = true
 glow_levels/2 = 0.5
 glow_levels/3 = 0.5
-glow_levels/5 = 0.0
+glow_levels/5 = 0.25
 glow_normalized = true
-glow_intensity = 0.1
+glow_intensity = 0.05
 glow_mix = 0.0
 glow_blend_mode = 1
 glow_hdr_threshold = 0.15
 glow_hdr_scale = 0.0
 fog_enabled = true
 fog_light_color = Color(0.647059, 0.745098, 0.94902, 1)
-fog_light_energy = 1.5
-fog_density = 0.001
+fog_density = 0.0025
 fog_aerial_perspective = 1.0
-volumetric_fog_density = 0.1394
-volumetric_fog_anisotropy = 0.9
+volumetric_fog_anisotropy = 0.0
+volumetric_fog_detail_spread = 6.0
 volumetric_fog_ambient_inject = 1.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3ls7e"]
+transparency = 1
+albedo_color = Color(0, 0, 0, 1)
+metallic_specular = 0.0
+emission_enabled = true
+emission = Color(0.996078, 0.701961, 0.407843, 1)
+emission_energy_multiplier = 4.0
+fixed_size = true
 
 [sub_resource type="LabelSettings" id="LabelSettings_7iqhx"]
 outline_size = 5
@@ -87,21 +121,36 @@ fractal_ping_pong_strength = 1.5
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_7jmul"]
 noise = SubResource("FastNoiseLite_ufa32")
 
+[sub_resource type="FogMaterial" id="FogMaterial_be1xj"]
+
 [node name="World" type="Node3D" groups=["World"]]
 script = ExtResource("1_m7hry")
 base_noise = ExtResource("2_y2ure")
+
+[node name="StarSphere" type="CSGSphere3D" parent="."]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0)
+flip_faces = true
+radius = 100.0
+radial_segments = 16
+rings = 32
+smooth_faces = false
+material = SubResource("StandardMaterial3D_t1dgp")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_3qx6c")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433012, 0, 2.36717, -1.64375)
+transform = Transform3D(-1, 7.57104e-08, -4.37114e-08, 0, 0.5, 0.866025, 8.74227e-08, 0.866026, -0.5, 0, 2.36717, -1.64375)
 shadow_enabled = true
 directional_shadow_split_1 = 0.02
 directional_shadow_split_2 = 0.08
 directional_shadow_split_3 = 0.25
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 200.0
+
+[node name="SunSprite" type="CSGBox3D" parent="DirectionalLight3D"]
+transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 500)
+material = SubResource("StandardMaterial3D_3ls7e")
 
 [node name="FPS" type="Label" parent="."]
 offset_right = 40.0
@@ -150,3 +199,6 @@ bus = &"BGM"
 
 [node name="AmbiencePlayer" type="AudioStreamPlayer" parent="."]
 bus = &"BGM"
+
+[node name="FogVolume" type="FogVolume" parent="."]
+material = SubResource("FogMaterial_be1xj")

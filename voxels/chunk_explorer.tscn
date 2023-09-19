@@ -36,7 +36,7 @@ offset_right = 128.0
 offset_bottom = 88.0
 min_value = -2.14748e+09
 max_value = 2.14748e+09
-value = 124.0
+value = 51.0
 rounded = true
 
 [node name="Label2" type="Label" parent="CanvasLayer"]

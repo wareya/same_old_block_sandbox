@@ -1,5 +1,6 @@
 extends Control
 
+
 var gen = Voxels.GlobalGenerator
 static var noise = preload("res://voxels/Noise.tres")
 
@@ -58,7 +59,6 @@ func _ready() -> void:
     get_loading()
 
 var loaded_chunks = {}
-
 
 var loading_chunks = []
 var last_xform = null
