@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://djsqwcak4phi1"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_30qbl"]
+sky_top_color = Color(0, 0, 0, 1)
+sky_horizon_color = Color(0.0980392, 0.0980392, 0.0980392, 1)
+ground_horizon_color = Color(0, 0, 0, 1)
+
+[sub_resource type="Sky" id="Sky_mr5ku"]
+sky_material = SubResource("ProceduralSkyMaterial_30qbl")
+
+[sub_resource type="Environment" id="Environment_mcrde"]
+background_mode = 2
+sky = SubResource("Sky_mr5ku")
+tonemap_mode = 2
+
+[node name="Node3D" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_mcrde")

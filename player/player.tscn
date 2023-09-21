@@ -51,7 +51,7 @@ void fragment()
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_e2ytg"]
 shader = SubResource("Shader_rcwn0")
-shader_parameter/water_color = Color(0.254902, 0.47451, 0.878431, 0.521569)
+shader_parameter/water_color = Color(0.25, 0.47, 0.88, 0.52)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1dqmv"]
 size = Vector3(0.6, 1.8, 0.6)

@@ -1,7 +1,7 @@
 extends Node3D
 class_name World
 
-var do_threading = false
+var do_threading = true
 
 # actual world limit: 32-bit signed integer overflow
 var chunk_table_mutex = Mutex.new()
@@ -186,24 +186,8 @@ func _ready() -> void:
     
     chunks_loaded[player_c] = vox
     
-    start_music_playlist()
+    $BGMPlayer.start_music_playlist()
 
-const music_playlist = [
-    preload("res://bgm/main theme.ogg"),
-    preload("res://bgm/cold theme.ogg"),
-    preload("res://bgm/hot theme.ogg"),
-]
-var music_cursor = 0
-func start_music_playlist():
-    while true:
-        await get_tree().create_timer(30.0).timeout
-        var next = music_playlist[music_cursor]
-        music_cursor = (music_cursor+1)%music_playlist.size()
-        $BGMPlayer.stream = next
-        if !$BGMPlayer.playing:
-            $BGMPlayer.playing = true
-        await $BGMPlayer.finished
-    
 var VoxelMesher = preload("res://voxels/VoxelMesher.cs").new()
 
 func place_player():
@@ -387,7 +371,8 @@ func _process(delta : float) -> void:
 var time = 0.0
 func day_night_cycle(delta):
     time += delta
-    $DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0/10.0)) # 20 minutes per day
+    #$DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0/10.0)) # 20 minutes per day
+    $DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0)) # 2 minutes per day
     
     #$DirectionalLight3D.rotation.x = sin(time*0.7)*0.2
     #$DirectionalLight3D.rotation.y = cos(time*0.7)*0.2
@@ -400,34 +385,47 @@ func day_night_cycle(delta):
     
     var raw_amount = sin($DirectionalLight3D.rotation.x+PI)
     
-    var amount = smoothstep(0.0, 1.0, clamp(raw_amount*10.0, 0.0, 1.0))
+    var amount = smoothstep(0.0, 1.0, clamp(raw_amount*10.0+0.2, 0.0, 1.0))
     var coloration = Color(1.5, 0.6, 0.1).blend(Color(1,1,1, smoothstep(0.0, 1.0, pow(abs(raw_amount), 0.7))))
     
-    ($DirectionalLight3D/SunSprite.material as StandardMaterial3D).emission = coloration
+    ($DirectionalLight3D/SunSprite.material as ShaderMaterial).set_shader_parameter("emission", coloration)
     $DirectionalLight3D.light_color = coloration
-    $DirectionalLight3D.light_energy = amount
     $DirectionalLight3D.shadow_enabled = amount > 0.0
     
     var env : Environment = $WorldEnvironment.environment
-    var sky : ProceduralSkyMaterial = env.sky.sky_material as ProceduralSkyMaterial
     
     var star_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0+raw_amount-0.3)*0.9, 0.0, 1.0))
-    $StarSphere.material.albedo_color.a = star_amount
-    var sky_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0-raw_amount-0.3)*0.9, 0.0, 1.0))
-    var sun_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0-raw_amount-0.1)*0.9, 0.0, 1.0))
     
-    ($DirectionalLight3D/SunSprite.material as StandardMaterial3D).albedo_color.a = sun_amount
+    var c = ($StarSphere.material as ShaderMaterial).get_shader_parameter("albedo")
+    c.a = star_amount
+    ($StarSphere.material as ShaderMaterial).set_shader_parameter("albedo", c)
+    
+    var sky_amount = smoothstep(0.0, 1.0, clamp(raw_amount*2.0+0.5, 0.1, 1.0))
+    var sun_amount = smoothstep(0.0, 1.0, clamp(raw_amount*5.0+0.3, 0.0, 1.0))
+    
+    $DirectionalLight3D.light_energy = sun_amount
+    
+    c = ($DirectionalLight3D/SunSprite.material as ShaderMaterial).get_shader_parameter("albedo")
+    c.a = sun_amount
+    ($DirectionalLight3D/SunSprite.material as ShaderMaterial).set_shader_parameter("albedo", c)
     
     var top = Color(0.16, 0.28, 0.55)
     var horizon = Color(0.71, 0.82, 1.0)
     var bottom = Color(0.13, 0.15, 0.2)
-    top = top * coloration * sky_amount
-    horizon = horizon * coloration * sky_amount
-    bottom = bottom * coloration * sky_amount
-    sky.sky_top_color = top
-    sky.sky_horizon_color = horizon
-    sky.ground_horizon_color = horizon
-    sky.ground_bottom_color = bottom
+    top = top * coloration
+    horizon = horizon * coloration
+    bottom = bottom * coloration
+    
+    if env.sky.sky_material is ProceduralSkyMaterial:
+        var sky := env.sky.sky_material as ProceduralSkyMaterial
+        sky.sky_top_color = top
+        sky.sky_horizon_color = horizon
+        sky.ground_horizon_color = horizon
+        sky.ground_bottom_color = bottom
+        sky.sky_energy_multiplier = sky_amount
+        sky.ground_energy_multiplier = sky_amount
+    
+    env.fog_density = 0.001 + (1.0-sky_amount)*0.01
     
     var ambient = Color(0.39, 0.39, 0.39)
     ambient = ambient * coloration * sky_amount
@@ -569,8 +567,8 @@ func dynamic_world_loop():
 
 static var _DummyGen = preload("res://voxels/VoxelGenerator.cs").new()
 #static var range_h = 96/Voxels.chunk_size_h/2
-#static var range_h = 512/_DummyGen._chunk_size_h/2 # 16
-static var range_h = 128/_DummyGen._chunk_size_h/2 # 16
+static var range_h = 512/_DummyGen._chunk_size_h/2 # 16
+#static var range_h = 128/_DummyGen._chunk_size_h/2 # 16
 #static var range_h = 1024/_DummyGen._chunk_size_h/2 # 32
 #static var range_h = 256/Voxels.chunk_size_h/2
 static var range_v_down = 64/_DummyGen._chunk_size_v
