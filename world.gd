@@ -368,46 +368,63 @@ func _process(delta : float) -> void:
     
     day_night_cycle(delta)
 
-var time = 0.0
+var prev_sun_update_time = 0.0
+var time = 0.0 # hours
+var first_only = true
 func day_night_cycle(delta):
-    time += delta
-    #$DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0/10.0)) # 20 minutes per day
-    $DirectionalLight3D.rotate_z(deg_to_rad(delta*3.0)) # 2 minutes per day
+    var unit = 1.0/120.0 # 2 minutes per day; change to 1200 for 20 minutes per day
+    time += delta * unit
+    time = fmod(time, 1.0)
     
-    #$DirectionalLight3D.rotation.x = sin(time*0.7)*0.2
-    #$DirectionalLight3D.rotation.y = cos(time*0.7)*0.2
+    var r = Vector3(deg_to_rad(-110.0), 0.0, 0.0) # 20 degree inclination
+    var sun_axis = Basis.from_euler(r - Vector3(PI/2, 0.0, 0.0)) * Vector3.FORWARD
     
-    $StarSphere.rotation = $DirectionalLight3D.rotation
+    $StarSphere.rotation = r
+    $StarSphere.rotate(sun_axis, deg_to_rad(time*360.0))
     
     var player = DummySingleton.get_tree().get_first_node_in_group("Player")
-    $DirectionalLight3D.global_position = player.global_position
     $StarSphere.global_position = player.global_position
     
-    var raw_amount = sin($DirectionalLight3D.rotation.x+PI)
+    # update rest of sky at a lower framerate
+    # if we update it any faster, we'll get performance problems
+    # because of the sky radiance map regeneration etc
+    if abs(prev_sun_update_time - time) < unit/10.0:
+        return
+    prev_sun_update_time = time
+    
+    $DirectionalLight3D.rotation = r
+    $DirectionalLight3D.rotate(sun_axis, deg_to_rad(time*360.0))
+    $DirectionalLight3D.global_position = player.global_position
+    
+    var raw_amount = sin(time*PI*2.0+PI/2.0)
     
     var amount = smoothstep(0.0, 1.0, clamp(raw_amount*10.0+0.2, 0.0, 1.0))
-    var coloration = Color(1.5, 0.6, 0.1).blend(Color(1,1,1, smoothstep(0.0, 1.0, pow(abs(raw_amount), 0.7))))
-    
-    ($DirectionalLight3D/SunSprite.material as ShaderMaterial).set_shader_parameter("emission", coloration)
-    $DirectionalLight3D.light_color = coloration
-    $DirectionalLight3D.shadow_enabled = amount > 0.0
     
     var env : Environment = $WorldEnvironment.environment
     
     var star_amount = smoothstep(0.0, 1.0, clamp(1.0-(1.0+raw_amount-0.3)*0.9, 0.0, 1.0))
+    var sky_amount = smoothstep(0.0, 1.0, clamp(raw_amount*1.0+0.5, 0.1, 1.0))
+    var sun_amount = smoothstep(0.0, 1.0, clamp(raw_amount*5.0+0.3, 0.0, 1.0))
+    var coloration = Color(1.5, 0.6, 0.1).blend(Color(1,1,1, smoothstep(0.0, 1.0, pow(abs(raw_amount), 0.7))))
     
     var c = ($StarSphere.material as ShaderMaterial).get_shader_parameter("albedo")
     c.a = star_amount
     ($StarSphere.material as ShaderMaterial).set_shader_parameter("albedo", c)
     
-    var sky_amount = smoothstep(0.0, 1.0, clamp(raw_amount*2.0+0.5, 0.1, 1.0))
-    var sun_amount = smoothstep(0.0, 1.0, clamp(raw_amount*5.0+0.3, 0.0, 1.0))
+    ($StarSphere/SunSprite.get_active_material(0) as ShaderMaterial).set_shader_parameter("emission", coloration)
+    $DirectionalLight3D.light_color = coloration
     
+    var shadows_enabled = sun_amount > 0.0
+    if $DirectionalLight3D.shadow_enabled != shadows_enabled:
+        $DirectionalLight3D.shadow_enabled = shadows_enabled
     $DirectionalLight3D.light_energy = sun_amount
     
-    c = ($DirectionalLight3D/SunSprite.material as ShaderMaterial).get_shader_parameter("albedo")
+    c = ($StarSphere/SunSprite.get_active_material(0) as ShaderMaterial).get_shader_parameter("albedo")
     c.a = sun_amount
-    ($DirectionalLight3D/SunSprite.material as ShaderMaterial).set_shader_parameter("albedo", c)
+    ($StarSphere/SunSprite.get_active_material(0) as ShaderMaterial).set_shader_parameter("albedo", c)
+    
+    var horizon_darken = clamp(-raw_amount, 0.0, 1.0)
+    horizon_darken *= horizon_darken
     
     var top = Color(0.16, 0.28, 0.55)
     var horizon = Color(0.71, 0.82, 1.0)
@@ -415,6 +432,8 @@ func day_night_cycle(delta):
     top = top * coloration
     horizon = horizon * coloration
     bottom = bottom * coloration
+    
+    horizon = horizon.lerp(bottom, horizon_darken)
     
     if env.sky.sky_material is ProceduralSkyMaterial:
         var sky := env.sky.sky_material as ProceduralSkyMaterial

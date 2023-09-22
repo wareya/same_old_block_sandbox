@@ -1,19 +1,39 @@
-[gd_scene load_steps=4 format=3 uid="uid://djsqwcak4phi1"]
+[gd_scene load_steps=5 format=3 uid="uid://djsqwcak4phi1"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_30qbl"]
-sky_top_color = Color(0, 0, 0, 1)
-sky_horizon_color = Color(0.0980392, 0.0980392, 0.0980392, 1)
-ground_horizon_color = Color(0, 0, 0, 1)
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_wehvd"]
+sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
 
-[sub_resource type="Sky" id="Sky_mr5ku"]
-sky_material = SubResource("ProceduralSkyMaterial_30qbl")
+[sub_resource type="Sky" id="Sky_s33q4"]
+sky_material = SubResource("ProceduralSkyMaterial_wehvd")
 
-[sub_resource type="Environment" id="Environment_mcrde"]
+[sub_resource type="Environment" id="Environment_j54j3"]
 background_mode = 2
-sky = SubResource("Sky_mr5ku")
+sky = SubResource("Sky_s33q4")
 tonemap_mode = 2
+sdfgi_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_do2dc"]
+transparency = 1
+metallic = 1.0
+roughness = 0.1
 
 [node name="Node3D" type="Node3D"]
 
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866023, -0.433016, 0.250001, 0, 0.499998, 0.866027, -0.500003, 0.749999, -0.43301, 0, 0, 0)
+shadow_enabled = true
+
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_mcrde")
+environment = SubResource("Environment_j54j3")
+
+[node name="CSGBox3D" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.434806, 0)
+
+[node name="CSGBox3D2" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.256359, 0)
+size = Vector3(3.76059, 1, 4.13833)
+material = SubResource("StandardMaterial3D_do2dc")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.505809, 0.813011)

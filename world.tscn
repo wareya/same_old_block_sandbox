@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://cfo3tvk8wo233"]
+[gd_scene load_steps=27 format=3 uid="uid://cfo3tvk8wo233"]
 
 [ext_resource type="Script" path="res://world.gd" id="1_m7hry"]
 [ext_resource type="FastNoiseLite" uid="uid://usco3w3110wq" path="res://voxels/Noise.tres" id="2_y2ure"]
@@ -67,9 +67,11 @@ void fragment() {
 	ALPHA *= albedo.a * albedo_tex.a;
     
     float n = (INV_VIEW_MATRIX * vec4(normalize(VERTEX), 0.0)).y;
-    n = clamp((n+0.1)*1.0, 0.0, 1.0);
+    n = clamp(n*10.0+0.1, 0.0, 1.0);
     
     ALPHA *= n;
+    if (ALPHA == 0.0)
+        discard;
     
     FOG *= 0.0;
 }
@@ -78,6 +80,7 @@ void fragment() {
 [sub_resource type="Gradient" id="Gradient_7p4ug"]
 interpolation_mode = 1
 offsets = PackedFloat32Array(0, 0.91875)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1)
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_j8ls0"]
 noise_type = 4
@@ -108,49 +111,6 @@ shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
 shader_parameter/texture_albedo = SubResource("NoiseTexture2D_c5ge0")
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_a1coy"]
-sky_top_color = Color(0.0392157, 0.0392157, 0.0392157, 1)
-sky_horizon_color = Color(0.0392157, 0.0392157, 0.0392157, 1)
-sky_curve = 0.15529
-ground_bottom_color = Color(0.133333, 0.145098, 0.2, 1)
-ground_horizon_color = Color(0.72549, 0.831373, 1, 1)
-sun_angle_max = 11.61
-sun_curve = 0.172306
-
-[sub_resource type="Sky" id="Sky_bj5pq"]
-sky_material = SubResource("ProceduralSkyMaterial_a1coy")
-
-[sub_resource type="Environment" id="Environment_3qx6c"]
-background_mode = 2
-sky = SubResource("Sky_bj5pq")
-ambient_light_source = 2
-ambient_light_color = Color(0.392157, 0.392157, 0.392157, 1)
-tonemap_exposure = 1.2
-ssao_enabled = true
-ssao_light_affect = 1.0
-ssao_ao_channel_affect = 1.0
-ssil_normal_rejection = 0.7
-sdfgi_y_scale = 0
-glow_enabled = true
-glow_levels/2 = 0.5
-glow_levels/3 = 0.5
-glow_levels/5 = 0.25
-glow_normalized = true
-glow_intensity = 0.05
-glow_mix = 0.0
-glow_blend_mode = 1
-glow_hdr_threshold = 0.15
-glow_hdr_scale = 0.0
-fog_enabled = true
-fog_light_color = Color(0.647059, 0.745098, 0.94902, 1)
-fog_sun_scatter = 0.05
-fog_density = 0.0025
-fog_aerial_perspective = 1.0
-fog_sky_affect = 0.0
-volumetric_fog_anisotropy = 0.0
-volumetric_fog_detail_spread = 6.0
-volumetric_fog_ambient_inject = 1.0
 
 [sub_resource type="Shader" id="Shader_k5naq"]
 code = "// NOTE: Shader automatically converted from Godot Engine 4.1.1.stable.mono's StandardMaterial3D.
@@ -210,6 +170,9 @@ void fragment() {
 	EMISSION = (emission.rgb+emission_tex)*emission_energy;
 	ALPHA *= albedo.a * albedo_tex.a;
     
+    if (ALPHA == 0.0)
+        discard;
+    
     FOG *= 0.0;
 }
 "
@@ -229,6 +192,52 @@ shader_parameter/uv1_scale = Vector3(1, 1, 1)
 shader_parameter/uv1_offset = Vector3(0, 0, 0)
 shader_parameter/uv2_scale = Vector3(1, 1, 1)
 shader_parameter/uv2_offset = Vector3(0, 0, 0)
+
+[sub_resource type="QuadMesh" id="QuadMesh_afeh8"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_a1coy"]
+sky_top_color = Color(0.215686, 0.34902, 0.576471, 1)
+sky_horizon_color = Color(0.72549, 0.831373, 1, 1)
+sky_curve = 0.15529
+ground_bottom_color = Color(0.133333, 0.145098, 0.2, 1)
+ground_horizon_color = Color(0.72549, 0.831373, 1, 1)
+sun_angle_max = 0.0
+sun_curve = 1e-05
+
+[sub_resource type="Sky" id="Sky_bj5pq"]
+sky_material = SubResource("ProceduralSkyMaterial_a1coy")
+process_mode = 3
+
+[sub_resource type="Environment" id="Environment_3qx6c"]
+background_mode = 2
+sky = SubResource("Sky_bj5pq")
+ambient_light_source = 2
+ambient_light_color = Color(0.392157, 0.392157, 0.392157, 1)
+tonemap_exposure = 1.2
+ssao_enabled = true
+ssao_light_affect = 1.0
+ssao_ao_channel_affect = 1.0
+ssil_normal_rejection = 0.7
+sdfgi_y_scale = 0
+glow_enabled = true
+glow_levels/2 = 0.5
+glow_levels/3 = 0.5
+glow_levels/5 = 0.25
+glow_normalized = true
+glow_intensity = 0.05
+glow_mix = 0.0
+glow_blend_mode = 1
+glow_hdr_threshold = 0.15
+glow_hdr_scale = 0.0
+fog_enabled = true
+fog_light_color = Color(0.647059, 0.745098, 0.94902, 1)
+fog_sun_scatter = 0.05
+fog_density = 0.0025
+fog_aerial_perspective = 1.0
+fog_sky_affect = 0.0
+volumetric_fog_anisotropy = 0.0
+volumetric_fog_detail_spread = 6.0
+volumetric_fog_ambient_inject = 1.0
 
 [sub_resource type="LabelSettings" id="LabelSettings_7iqhx"]
 outline_size = 5
@@ -295,7 +304,6 @@ base_noise = ExtResource("2_y2ure")
 
 [node name="StarSphere" type="CSGSphere3D" parent="."]
 transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0)
-visible = false
 cast_shadow = 0
 gi_mode = 0
 flip_faces = true
@@ -304,23 +312,31 @@ radial_segments = 16
 rings = 32
 material = SubResource("ShaderMaterial_py3ds")
 
+[node name="SunSprite2" type="CSGBox3D" parent="StarSphere"]
+transform = Transform3D(0.0166667, 0, 0, 0, 0.0166667, 0, 0, 0, 0.0166667, 0, 0, -5)
+visible = false
+cast_shadow = 0
+extra_cull_margin = 10000.0
+size = Vector3(1, 1, 0.01)
+material = SubResource("ShaderMaterial_ajleu")
+
+[node name="SunSprite" type="MeshInstance3D" parent="StarSphere"]
+transform = Transform3D(-0.016, 0, -1.39876e-09, 0, 0.016, 0, 1.39876e-09, 0, -0.016, 0, 0, 50)
+mesh = SubResource("QuadMesh_afeh8")
+surface_material_override/0 = SubResource("ShaderMaterial_ajleu")
+
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_3qx6c")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-1, 7.57104e-08, -4.37114e-08, 0, 0.5, 0.866025, 8.74227e-08, 0.866026, -0.5, 0, 2.36717, -1.64375)
+transform = Transform3D(1, 0, 0, 0, -0.5, 0.866025, 0, -0.866026, -0.5, 0, 2.36717, -1.64375)
+light_bake_mode = 0
 shadow_enabled = true
 directional_shadow_split_1 = 0.02
 directional_shadow_split_2 = 0.08
 directional_shadow_split_3 = 0.25
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 200.0
-
-[node name="SunSprite" type="CSGBox3D" parent="DirectionalLight3D"]
-transform = Transform3D(0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 500)
-cast_shadow = 0
-extra_cull_margin = 10000.0
-material = SubResource("ShaderMaterial_ajleu")
 
 [node name="FPS" type="Label" parent="."]
 offset_right = 40.0
