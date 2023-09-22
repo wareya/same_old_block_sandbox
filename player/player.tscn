@@ -180,7 +180,6 @@ shape = SubResource("BoxShape3D_1dqmv")
 
 [node name="ReflectionProbe" type="ReflectionProbe" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.625, 0)
-update_mode = 1
 max_distance = 64.0
 size = Vector3(6400, 24, 6400)
 box_projection = true

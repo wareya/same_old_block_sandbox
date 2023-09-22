@@ -120,7 +120,6 @@ environment/ssil/quality=0
 environment/ssil/half_size=false
 environment/ssil/fadeout_from=2000.0
 environment/ssil/fadeout_to=4000.0
-anti_aliasing/screen_space_roughness_limiter/enabled=false
 
 [shader_globals]
 

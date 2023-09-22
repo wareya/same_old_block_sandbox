@@ -388,8 +388,11 @@ func day_night_cycle(delta):
     # update rest of sky at a lower framerate
     # if we update it any faster, we'll get performance problems
     # because of the sky radiance map regeneration etc
-    if abs(prev_sun_update_time - time) < unit/10.0:
+    if abs(prev_sun_update_time - time) < unit/30.0:
         return
+    
+    player.refresh_probe()
+    
     prev_sun_update_time = time
     
     $DirectionalLight3D.rotation = r

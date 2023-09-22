@@ -203,6 +203,7 @@ ground_bottom_color = Color(0.133333, 0.145098, 0.2, 1)
 ground_horizon_color = Color(0.72549, 0.831373, 1, 1)
 sun_angle_max = 0.0
 sun_curve = 1e-05
+use_debanding = false
 
 [sub_resource type="Sky" id="Sky_bj5pq"]
 sky_material = SubResource("ProceduralSkyMaterial_a1coy")
